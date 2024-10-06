@@ -13,7 +13,7 @@ MX Cross Assembler is a command-line tool for assembling machine code for the MX
 
 - Python 3.8+
 - `click` library for the command-line interface.
-- `toml` library for parsing the production mapping.
+- `json` library for parsing the production mapping.
 
 ## Installation
 
@@ -41,7 +41,22 @@ MX Cross Assembler is a command-line tool for assembling machine code for the MX
 
 ### Command-Line Interface
 
-The assembler can be run using a CLI defined in `pyproject.toml`. The general syntax is:
+```shell
+$ mxsm --help
+Usage: mxsm [OPTIONS] [PROD_FILE] INPUT_FILE
 
-```bash
-mxsm [OPTIONS] INPUT_FILE
+  MXSM - MX Cross Assembler
+
+  2-Pass Cross Architecture Assembler for MX Architecture
+
+  INPUT_FILE: Path to the MX assembly file.
+
+  PROD_FILE: Production table file in JSON. [default: ./prod.tab.json]
+
+Options:
+  -o, --output PATH  Directory to save the assembled binary files.  [default:
+                     ./build]
+  --debug            Print debug information after assembly.
+  --help             Show this message and exit.
+$
+```
