@@ -21,8 +21,8 @@ class Assembler:
             else:
                 return sprod
         def unpack_prod(sprod: str):
-            import toml
-            return unpack_int(toml.loads(sprod))
+            import json
+            return unpack_int(json.loads(sprod))
         try:
             self.prod = unpack_prod(prod)
         except Exception as e:
@@ -153,3 +153,11 @@ class Assembler:
         except:
             self.assemble()
             return self.__store__['data']
+
+    @property
+    def debug_info(self):
+        try:
+            return self.__store__['debug']
+        except:
+            self.assemble()
+            return self.__store__['debug']
