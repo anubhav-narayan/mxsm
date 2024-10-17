@@ -1,12 +1,13 @@
 import os
 import click
+import pprint
 from .assembler import Assembler
 
 @click.command('mxsm')
 @click.option('-o', '--output', type=click.Path(exists=True, dir_okay=True, resolve_path=True), help="Directory to save the assembled binary files.", default="./build", show_default=True)
 @click.option('--debug', is_flag=True, default=False, help="Print debug information after assembly.")
-@click.argument('prod-file', type=click.Path(exists=True, file_okay=True, resolve_path=True), default="./prod.tab.json")
 @click.argument('input-file', type=click.Path(exists=True, file_okay=True, resolve_path=True), required=True)
+@click.argument('prod-file', type=click.Path(exists=True, file_okay=True, resolve_path=True), default="./prod.tab.json")
 def main(input_file, prod_file, output, debug):
     """
     MXSM - MX Cross Assembler
@@ -37,7 +38,7 @@ def main(input_file, prod_file, output, debug):
             f.write(asm.data)
 
         if debug:
-            click.echo(asm.debug_info)
+            click.echo(pprint.pformat(asm.debug_info))
     except Exception as e:
         raise click.ClickException(str(e))
 
