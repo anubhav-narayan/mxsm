@@ -77,9 +77,33 @@ class Assembler:
                         self.symbol_table[tokens[i].value] = mem_addr
                     if (tokens[i].type == TokenType.DIRECTIVE):
                         if(tokens[i].value == '.byte'):
-                            if (i + 1 < len(tokens)):
-                                self.mem_dict[mem_addr] = tokens[i+1]
-                            mem_addr += 1
+                            if (len(tokens) > 1):
+                                for token in tokens[1:]:
+                                    if token.type == TokenType.DEC_NUMBER:
+                                        self.mem_dict[mem_addr] = token
+                                        mem_addr += 1
+                                        continue
+                                    if token.type == TokenType.HEX_NUMBER:
+                                        self.mem_dict[mem_addr] = token
+                                        mem_addr += 1
+                                        continue
+                                    if token.type == TokenType.OCT_NUMBER:
+                                        self.mem_dict[mem_addr] = token
+                                        mem_addr += 1
+                                        continue
+                                    if token.type == TokenType.BIN_NUMBER:
+                                        self.mem_dict[mem_addr] = token
+                                        mem_addr += 1
+                                        continue
+                                    if token.type == TokenType.STRING:
+                                        for x in token.value.strip('"'):
+                                            self.mem_dict[mem_addr] = Token(TokenType.DEC_NUMBER , str(ord(x)), token.line, token.column)
+                                            mem_addr += 1
+                                        continue
+                                    if token.type == TokenType.ADDRESS_LABEL:
+                                        self.mem_dict[mem_addr] = token
+                                        mem_addr += 1
+                                        continue
                         if(tokens[i].value == '.res'):
                             if (i + 1 < len(tokens)):
                                 for _ in range(mem_addr, mem_addr+int(tokens[i+1].value, 10)):

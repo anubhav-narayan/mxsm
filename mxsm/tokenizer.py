@@ -9,6 +9,7 @@ class TokenType(Enum):
     BIN_NUMBER = auto()
     DEC_NUMBER = auto()
     LABEL = auto()
+    STRING = auto()
     DIRECTIVE = auto()
     ADDRESS_LABEL = auto()
     ADDRESS_HEX_NUMBER = auto()
@@ -50,6 +51,7 @@ class Tokenizer:
             (TokenType.ADDRESS_OCT_NUMBER, r'&0[oO]?[0-7]+\b'),
             (TokenType.ADDRESS_BIN_NUMBER, r'&0[bB][01]+\b'),
             (TokenType.ADDRESS_DEC_NUMBER, r'&\d+\b'),
+            (TokenType.STRING, r'"([^"\\]|\\.)*"'),
             (TokenType.COMMENT, r';.*'),
             (TokenType.WHITESPACE, r'[ \t\n]+')
         ]
