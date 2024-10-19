@@ -1,0 +1,51 @@
+; Programme write "Hello World!" to location 0x80
+; Architectue: MX11SU
+; Programmer: Anubhav Mattoo
+
+.data
+; Data Segment of the Programme
+        .byte &main
+        .byte &loop
+        .byte 128               ; Destination Address
+        .byte 12                ; String Length
+        .byte "Hello World!"    ; String
+
+
+.ins
+; Instruction Segment of the Programme
+; This programme uses Y as a counter
+main:   NOP                 ; Stall 1 machine cycle
+        LDI 0x2             ; Load 0x02 in A
+        ADD D, A            ; Increment D to point at destination address
+        LD X                ; Load the address to X
+        INCR D              ; Increment D to point at string length
+        LD Y                ; Load the length to Y
+        INCR D              ; Move to the next charater
+        SHM SD              ; Prepare for _loop
+
+loop:   SHM D               ; Get source address
+        LD A                ; Load character to A
+        INCR D              ; Move to next source address
+        SHM SD              ; Shadow Move D
+        MOV D, X            ; Get destination address
+        ST A                ; Store A at destination
+        INCR D              ; Move to next destination address
+        MOV X, D            ; Move destination address to X
+        CLR D               ; Clear D
+        INCR D              ; Get address to _loop
+        LD A                ; Load address of _loop to A
+        MOV D, A            ; Move address of _loop to D 
+        DECR Y              ; Decrement Length
+        JNZ                 ; Goto _loop if not 0
+        
+        HALT                ; Halt at the end
+
+.nmi
+; NMI Handler
+        CLR D              ; Clear D to point at main
+        JNC                ; Loop to address in D &main
+
+.irq
+; Interrupt Service Routine
+        CLR D              ; Clear D to point at main
+        JNC                ; Loop to address in D &main

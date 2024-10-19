@@ -1,7 +1,7 @@
 {
   "NMI_ADDR": 128,
   "IRQ_ADDR": 192,
-  "INSR": [
+  "INS": [
     "NOP",
     "NOT",
     "NAND",
@@ -101,7 +101,8 @@
       "RJE": "ad",
       "RJLT": "ae",
       "RJGT": "af",
-      "INTR": "f2"
+      "INTR": "f2",
+      "HALT": "ff"
     },
     "INSTRUCTION,REGISTER": {
       "depth": 2,
@@ -577,6 +578,14 @@
           "X": "57",
           "Y": "67",
           "D": "77"
+        }
+      },
+      "ADD": {
+        "D": {
+          "A": "48",
+          "X": "58",
+          "Y": "68",
+          "D": "78"
         }
       }
     }
