@@ -41,6 +41,8 @@ class Assembler:
             self.tokenizer = Tokenizer(code, tab['INS'], tab['REGS'])
             self.nmi_addr = tab['NMI_ADDR']
             self.irq_addr = tab['IRQ_ADDR']
+            self.ins_len = tab['INSTRUCTION_LENGTH']
+            self.data_len = tab['DATA_LENGTH']
         except Exception as e:
             raise e
 
@@ -146,17 +148,18 @@ class Assembler:
             bytes: Byte code for memory
         """
         data = b''
+        mask = (2**(self.data_len * 8)) - 1
         for x in self.mem_dict:
             if self.mem_dict[x].type == TokenType.ADDRESS_LABEL:
-                data += (self.symbol_table[self.mem_dict[x].value[1:]] & 0xFF).to_bytes()
+                data += (self.symbol_table[self.mem_dict[x].value[1:]] & mask).to_bytes(self.data_len, 'big')
             if self.mem_dict[x].type == TokenType.HEX_NUMBER:
-                data += (int(self.mem_dict[x].value, 16) & 0xFF).to_bytes()
+                data += (int(self.mem_dict[x].value, 16) & mask).to_bytes(self.data_len, 'big')
             if self.mem_dict[x].type == TokenType.BIN_NUMBER:
-                data += (int(self.mem_dict[x].value, 2) & 0xFF).to_bytes()
+                data += (int(self.mem_dict[x].value, 2) & mask).to_bytes(self.data_len, 'big')
             if self.mem_dict[x].type == TokenType.OCT_NUMBER:
-                data += (int(self.mem_dict[x].value, 8) & 0xFF).to_bytes()
+                data += (int(self.mem_dict[x].value, 8) & mask).to_bytes(self.data_len, 'big')
             if self.mem_dict[x].type == TokenType.DEC_NUMBER:
-                data += (int(self.mem_dict[x].value, 10) & 0xFF).to_bytes()
+                data += (int(self.mem_dict[x].value, 10) & mask).to_bytes(self.data_len, 'big')
         return data
 
     def assemble_ins(self) -> bytearray:
@@ -169,7 +172,8 @@ class Assembler:
         Raises:
             SyntaxError: for unrecognised operations and labels
         """
-        ins = bytearray(max(self.ins_dict.keys())+1)
+        ins = b''
+        mask = (2**(self.ins_len * 8)) - 1
         for line in self.ins_dict:
             insl = self.ins_dict[line]
             for x in range(len(insl)):
@@ -177,7 +181,7 @@ class Assembler:
                     if insl[x].type == TokenType.ADDRESS_LABEL:
                         insl[x] = Token(
                             TokenType['HEX_NUMBER'],
-                            (self.symbol_table[insl[x].value[1:]] & 0x0F),
+                            (self.symbol_table[insl[x].value[1:]] & mask),
                             insl[x].line,
                             insl[x].column
                         )
@@ -207,11 +211,10 @@ class Assembler:
                     try:
                         _ins = _ins[insl[i].value]
                     except KeyError as e:
-                        print(self.tokenizer.tokens)
                         raise SyntaxError(
                             f"\"{insl[i].line+1}: {self.tokenizer.code[insl[i].line]}\" is not a recognised operation"
                         )
-                ins[line] = _ins
+                ins += _ins.to_bytes(self.ins_len, 'big')
             except Exception as e:
                 raise e
 

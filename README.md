@@ -68,6 +68,8 @@ $
 {
   "NMI_ADDR": 128,
   "IRQ_ADDR": 192,
+  "INSTRUCTION_LENGTH": 1,
+  "DATA_LENGTH": 1,
   "INS": [
     "NOP",
     "NOT",

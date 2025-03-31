@@ -43,7 +43,7 @@ class Tokenizer:
             (TokenType.HEX_NUMBER, r'\b0[xX][0-9a-fA-F]+\b'),
             (TokenType.OCT_NUMBER, r'\b0[oO]?[0-7]+\b'),
             (TokenType.BIN_NUMBER, r'\b0[bB][01]+\b'),
-            (TokenType.DEC_NUMBER, r'\b\d+\b'),
+            (TokenType.DEC_NUMBER, r'\b[0[dD]]\d+\b'),
             (TokenType.LABEL, r'^(?:(?!\:)[A-Za-z_][A-Za-z0-9_]*)+'),
             (TokenType.DIRECTIVE, r'\.[A-Za-z_][A-Za-z0-9_]*\b'),
             (TokenType.ADDRESS_LABEL, r'&[A-Za-z_][A-Za-z0-9_]*\b'),
