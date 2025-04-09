@@ -4,18 +4,12 @@ from enum import Enum, auto
 class TokenType(Enum):
     INSTRUCTION = auto()
     REGISTER = auto()
-    HEX_NUMBER = auto()
-    OCT_NUMBER = auto()
-    BIN_NUMBER = auto()
-    DEC_NUMBER = auto()
+    NUMBER = auto()
     LABEL = auto()
     STRING = auto()
     DIRECTIVE = auto()
     ADDRESS_LABEL = auto()
-    ADDRESS_HEX_NUMBER = auto()
-    ADDRESS_OCT_NUMBER = auto()
-    ADDRESS_BIN_NUMBER = auto()
-    ADDRESS_DEC_NUMBER = auto()
+    ADDRESS_NUMBER = auto()
     COMMENT = auto()
     WHITESPACE = auto()
 
@@ -38,19 +32,13 @@ class Tokenizer:
         self.INSR_LIST = insr_list
         self.REG_LIST = reg_list
         self.token_specification = [
-            (TokenType.INSTRUCTION, rf'\b(?:{"|".join(self.INSR_LIST)})'),
-            (TokenType.REGISTER, rf'{"|".join(self.REG_LIST)}\b'),
-            (TokenType.HEX_NUMBER, r'\b0[xX][0-9a-fA-F]+\b'),
-            (TokenType.OCT_NUMBER, r'\b0[oO]?[0-7]+\b'),
-            (TokenType.BIN_NUMBER, r'\b0[bB][01]+\b'),
-            (TokenType.DEC_NUMBER, r'\b[0[dD]]\d+\b'),
+            (TokenType.INSTRUCTION, rf'\b(?:{"|".join(self.INSR_LIST)})\b'),
+            (TokenType.REGISTER, rf'\b(?:{"|".join(self.REG_LIST)})\b'),
+            (TokenType.NUMBER, r'\b(?:0[xX][0-9a-fA-F]+|0[bB][01]+|0[oO]?[0-7]+|\d+)\b'),
             (TokenType.LABEL, r'^(?:(?!\:)[A-Za-z_][A-Za-z0-9_]*)+'),
             (TokenType.DIRECTIVE, r'\.[A-Za-z_][A-Za-z0-9_]*\b'),
             (TokenType.ADDRESS_LABEL, r'&[A-Za-z_][A-Za-z0-9_]*\b'),
-            (TokenType.ADDRESS_HEX_NUMBER, r'&0[xX][0-9a-fA-F]+\b'),
-            (TokenType.ADDRESS_OCT_NUMBER, r'&0[oO]?[0-7]+\b'),
-            (TokenType.ADDRESS_BIN_NUMBER, r'&0[bB][01]+\b'),
-            (TokenType.ADDRESS_DEC_NUMBER, r'&\d+\b'),
+            (TokenType.ADDRESS_NUMBER, r'&(?:0[xX][0-9a-fA-F]+|0[bB][01]+|0[oO]?[0-7]+|\d+)\b'),
             (TokenType.STRING, r'"([^"\\]|\\.)*"'),
             (TokenType.COMMENT, r';.*'),
             (TokenType.WHITESPACE, r'[ \t\n]+')
@@ -69,7 +57,7 @@ class Tokenizer:
             type_name = match.lastgroup
             value = match.group(type_name)
             start_pos = match.start()
-            column = start_pos + 1  # Adjusting to 1-based column index
+            column = start_pos + 1
 
             if type_name in [TokenType.WHITESPACE.name, TokenType.COMMENT.name]:
                 continue
