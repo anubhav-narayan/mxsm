@@ -26,9 +26,7 @@ class Token:
 
 
 class Tokenizer:
-    def __init__(self, code, insr_list, reg_list):
-        self.code = code.splitlines()
-        self.tokens = {}
+    def __init__(self, insr_list, reg_list):
         self.INSR_LIST = insr_list
         self.REG_LIST = reg_list
         self.token_specification = [
@@ -46,10 +44,12 @@ class Tokenizer:
 
         self.token_re = '|'.join(f'(?P<{pair[0].name}>{pair[1]})' for pair in self.token_specification)
 
-    def tokenize(self):
-        for line in range(len(self.code)):
-            self.tokens[line] = self.tokenize_line(self.code[line], line)
-        return self.tokens
+    def tokenize(self, code):
+        code = code.splitlines()
+        tokens = {}
+        for line in range(len(code)):
+            tokens[line] = self.tokenize_line(code[line], line)
+        return tokens
 
     def tokenize_line(self, line, line_number):
         tokens = []

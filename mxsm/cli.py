@@ -28,8 +28,8 @@ def main(input_file, prod_file, output, debug):
             prod = f.read()
 
         # Create an Assembler instance
-        asm = Assembler(code, prod)
-        asm.assemble()
+        asm = Assembler(prod)
+        asm.assemble(code)
 
         with open(os.path.join(f"{os.path.realpath(output)}", 'ins.bin'), 'wb') as f:
             f.write(asm.ins)
@@ -40,6 +40,7 @@ def main(input_file, prod_file, output, debug):
         if debug:
             click.echo(pprint.pformat(asm.debug_info))
     except Exception as e:
+        raise e
         raise click.ClickException(str(e))
 
 
