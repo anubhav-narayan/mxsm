@@ -1,6 +1,7 @@
 from typing import Any
 from .tokenizer import TokenType, Token
 from .tokenizer import Tokenizer
+from .production_tree import ProductionTree
 
 
 class Assembler:
@@ -22,22 +23,12 @@ class Assembler:
         self.mem_dict = {}
         self.ins_dict = {}
         self.symbol_table = {}
-        def unpack_int(sprod) -> dict | Any:
-            if isinstance(sprod, dict):
-                return {int(key) if key.isdigit() else key: unpack_int(value) for key, value in sprod.items()}
-            elif isinstance(sprod, str):
-                try:
-                    return int(sprod.encode('utf-8'), 16)
-                except Exception:
-                    return sprod
-            else:
-                return sprod
         def unpack_prod(sprod: str) -> dict:
             import json
-            return unpack_int(json.loads(sprod))
+            return json.loads(sprod)
         try:
             tab = unpack_prod(prod)
-            self.prod = tab['PROD']
+            self.prod = ProductionTree(tab['PROD'])
             self.tokenizer = Tokenizer(tab['INS'], tab['REGS'])
             self.nmi_addr = tab['NMI_ADDR']
             self.irq_addr = tab['IRQ_ADDR']
@@ -86,7 +77,7 @@ class Assembler:
             tokens = section[line_number]
             for i in range(len(tokens)):
                 if tokens[i].type == TokenType.LABEL:
-                    self.symbol_table[tokens[i].value] = base_address
+                    self.symbol_table[tokens[i].value] = str(base_address)
                 if (tokens[i].type == TokenType.DIRECTIVE):
                     if(tokens[i].value == '.byte'):
                         if (len(tokens) > 1):
@@ -140,7 +131,7 @@ class Assembler:
         mask = (2**(self.data_len * 8)) - 1
         for x in self.mem_dict:
             if self.mem_dict[x].type == TokenType.ADDRESS_LABEL:
-                self.data += (self.symbol_table[self.mem_dict[x].value[1:]] & mask).to_bytes(self.data_len, 'big')
+                self.data += (int(self.symbol_table[self.mem_dict[x].value[1:]], 0) & mask).to_bytes(self.data_len, 'big')
             if self.mem_dict[x].type == TokenType.NUMBER:
                 self.data += (int(self.mem_dict[x].value, 0) & mask).to_bytes(self.data_len, 'big')
         return self.data
@@ -164,35 +155,34 @@ class Assembler:
                     if insl[x].type == TokenType.ADDRESS_LABEL:
                         insl[x] = Token(
                             TokenType.NUMBER,
-                            (self.symbol_table[insl[x].value[1:]] & mask),
+                            str(int(self.symbol_table[self.mem_dict[x].value[1:]], 0) & mask),
                             insl[x].line,
                             insl[x].column
                         )
                         continue
                     if insl[x].type == TokenType.NUMBER:
-                        insl[x].value = int(insl[x].value, 0)
+                        insl[x].value = str(int(insl[x].value, 0) & mask)
                         continue
                 except Exception as e:
                     raise SyntaxError(
-                        f"{insl[x].line+1}: {self.tokenizer.code[insl[x].line]}\n"
+                        f"{insl[x].line+1}: {self.code[insl[x].line]}\n"
                         + f"Label {insl[x].value[1:]} not defined."
                     )
             try:
                 type_s = ','.join([x.type.name for x in insl])
+                fmt = '/'.join([x.value for x in insl])
                 try:
-                    bmap = self.prod[type_s]
-                except KeyError as e:
+                    _ins = self.prod.get_production(type_s)
+                except Exception as e:
                     raise SyntaxError(
-                        f"\"{insl[0].line+1}: {self.code[insl[0].line]}\" is not a recognised operation"
+                        f"\"{insl[0].line+1}: {self.code[insl[0].line]}\" is an invalid production\n"
                     )
-                _ins = bmap
-                for i in range(0, bmap['depth']):
-                    try:
-                        _ins = _ins[insl[i].value]
-                    except KeyError as e:
-                        raise SyntaxError(
-                            f"\"{insl[i].line+1}: {self.code[insl[i].line]}\" is not a recognised operation"
-                        )
+                try:
+                    _ins = _ins.search_path(fmt).value
+                except Exception as e:
+                    raise SyntaxError(
+                        f"\"{insl[i].line+1}: {self.code[insl[i].line]}\" is not a recognised operation"
+                    )
                 self.ins[line] = _ins.to_bytes(self.ins_len, 'big')
             except Exception as e:
                 raise e

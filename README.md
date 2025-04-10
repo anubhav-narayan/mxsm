@@ -1,6 +1,6 @@
 # MX Assembler
 
-MX Cross Assembler is a command-line tool for assembling machine code for the MX architecture (or theoratically any architecture). This tool takes an assembly source file and a production mapping file in TOML format and generates binary output files for data and instruction segments.
+MX Cross Assembler is a command-line tool for assembling machine code for the MX architecture (or theoratically any architecture). This tool takes an assembly source file and a production mapping file in JSON format and generates binary output files for data and instruction segments.
 
 ## Features
 
@@ -135,7 +135,7 @@ $
   ],
   "PROD" : {
     "INSTRUCTION": {
-      "depth": 1,
+      "idepth": 1,
       "NOP": "00",
       "NOT": "01",
       "NAND": "02",
@@ -170,10 +170,11 @@ $
       "RJE": "ad",
       "RJLT": "ae",
       "RJGT": "af",
-      "INTR": "f2"
+      "INTR": "f2",
+      "HALT": "ff"
     },
     "INSTRUCTION,REGISTER": {
-      "depth": 2,
+      "idepth": 2,
       "MOV": {
         "X": "10",
         "Y": "20",
@@ -312,191 +313,8 @@ $
         "D": "97"
       }
     },
-    "INSTRUCTION,HEX_NUMBER": {
-      "depth": 2,
-      "LDI": {
-        "0": "e0",
-        "1": "e1",
-        "2": "e2",
-        "3": "e3",
-        "4": "e4",
-        "5": "e5",
-        "6": "e6",
-        "7": "e7",
-        "8": "e8",
-        "9": "e9",
-        "10": "ea",
-        "11": "eb",
-        "12": "ec",
-        "13": "ed",
-        "14": "ee",
-        "15": "ef"
-      },
-      "SHL": {
-        "0": "c0",
-        "1": "c1",
-        "2": "c2",
-        "3": "c3",
-        "4": "c4",
-        "5": "c5",
-        "6": "c6",
-        "7": "c7"
-      },
-      "ROL": {
-        "0": "c8",
-        "1": "c9",
-        "2": "ca",
-        "3": "cb",
-        "4": "cc",
-        "5": "cd",
-        "6": "ce",
-        "7": "cf"
-      },
-      "SHR": {
-        "0": "d0",
-        "1": "d1",
-        "2": "d2",
-        "3": "d3",
-        "4": "d4",
-        "5": "d5",
-        "6": "d6",
-        "7": "d7"
-      },
-      "ROR": {
-        "0": "d8",
-        "1": "d9",
-        "2": "da",
-        "3": "db",
-        "4": "dc",
-        "5": "dd",
-        "6": "de",
-        "7": "df"
-      }
-    },
-    "INSTRUCTION,DEC_NUMBER": {
-      "depth": 2,
-      "LDI": {
-        "0": "e0",
-        "1": "e1",
-        "2": "e2",
-        "3": "e3",
-        "4": "e4",
-        "5": "e5",
-        "6": "e6",
-        "7": "e7",
-        "8": "e8",
-        "9": "e9",
-        "10": "ea",
-        "11": "eb",
-        "12": "ec",
-        "13": "ed",
-        "14": "ee",
-        "15": "ef"
-      },
-      "SHL": {
-        "0": "c0",
-        "1": "c1",
-        "2": "c2",
-        "3": "c3",
-        "4": "c4",
-        "5": "c5",
-        "6": "c6",
-        "7": "c7"
-      },
-      "ROL": {
-        "0": "c8",
-        "1": "c9",
-        "2": "ca",
-        "3": "cb",
-        "4": "cc",
-        "5": "cd",
-        "6": "ce",
-        "7": "cf"
-      },
-      "SHR": {
-        "0": "d0",
-        "1": "d1",
-        "2": "d2",
-        "3": "d3",
-        "4": "d4",
-        "5": "d5",
-        "6": "d6",
-        "7": "d7"
-      },
-      "ROR": {
-        "0": "d8",
-        "1": "d9",
-        "2": "da",
-        "3": "db",
-        "4": "dc",
-        "5": "dd",
-        "6": "de",
-        "7": "df"
-      }
-    },
-    "INSTRUCTION,OCT_NUMBER": {
-      "depth": 2,
-      "LDI": {
-        "0": "e0",
-        "1": "e1",
-        "2": "e2",
-        "3": "e3",
-        "4": "e4",
-        "5": "e5",
-        "6": "e6",
-        "7": "e7",
-        "8": "e8",
-        "9": "e9",
-        "10": "ea",
-        "11": "eb",
-        "12": "ec",
-        "13": "ed",
-        "14": "ee",
-        "15": "ef"
-      },
-      "SHL": {
-        "0": "c0",
-        "1": "c1",
-        "2": "c2",
-        "3": "c3",
-        "4": "c4",
-        "5": "c5",
-        "6": "c6",
-        "7": "c7"
-      },
-      "ROL": {
-        "0": "c8",
-        "1": "c9",
-        "2": "ca",
-        "3": "cb",
-        "4": "cc",
-        "5": "cd",
-        "6": "ce",
-        "7": "cf"
-      },
-      "SHR": {
-        "0": "d0",
-        "1": "d1",
-        "2": "d2",
-        "3": "d3",
-        "4": "d4",
-        "5": "d5",
-        "6": "d6",
-        "7": "d7"
-      },
-      "ROR": {
-        "0": "d8",
-        "1": "d9",
-        "2": "da",
-        "3": "db",
-        "4": "dc",
-        "5": "dd",
-        "6": "de",
-        "7": "df"
-      }
-    },
-    "INSTRUCTION,BIN_NUMBER": {
-      "depth": 2,
+    "INSTRUCTION,NUMBER": {
+      "idepth": 2,
       "LDI": {
         "0": "e0",
         "1": "e1",
@@ -557,7 +375,7 @@ $
       }
     },
     "INSTRUCTION,REGISTER,REGISTER": {
-      "depth": 3,
+      "idepth": 3,
       "MOV": {
         "A": {
           "A": "00",
@@ -646,6 +464,14 @@ $
           "X": "57",
           "Y": "67",
           "D": "77"
+        }
+      },
+      "ADD": {
+        "D": {
+          "A": "48",
+          "X": "58",
+          "Y": "68",
+          "D": "78"
         }
       }
     }

@@ -68,7 +68,7 @@
   ],
   "PROD" : {
     "INSTRUCTION": {
-      "depth": 1,
+      "idepth": 1,
       "NOP": "00",
       "NOT": "01",
       "NAND": "02",
@@ -107,7 +107,7 @@
       "HALT": "ff"
     },
     "INSTRUCTION,REGISTER": {
-      "depth": 2,
+      "idepth": 2,
       "MOV": {
         "X": "10",
         "Y": "20",
@@ -247,7 +247,7 @@
       }
     },
     "INSTRUCTION,NUMBER": {
-      "depth": 2,
+      "idepth": 2,
       "LDI": {
         "0": "e0",
         "1": "e1",
@@ -308,7 +308,7 @@
       }
     },
     "INSTRUCTION,REGISTER,REGISTER": {
-      "depth": 3,
+      "idepth": 3,
       "MOV": {
         "A": {
           "A": "00",
