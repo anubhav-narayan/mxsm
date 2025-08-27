@@ -1,0 +1,251 @@
+# ==================================
+# MOS 6502 Architecture (ISDL + Templates)
+# ==================================
+
+ARCH MOS6502 {
+    version: "1.0",
+    endian: "little",
+    addr_bits: 16,
+    data_bits: 8,
+    stack_base: 0x0100,
+    vectors: {
+        NMI: 0xFFFA,
+        RESET: 0xFFFC,
+        IRQ: 0xFFFE
+    }
+}
+
+# ----------------------------------
+# Register classes
+# ----------------------------------
+REG_CLASS acc { A }
+REG_CLASS idx { X, Y }
+REG_CLASS sp  { SP }
+REG_CLASS pc  { PC }
+REG_CLASS flg { N, V, U, B, D, I, Z, C }
+
+# ----------------------------------
+# Addressing formats
+# ----------------------------------
+FORMAT impl {
+    bits: 8
+    field opcode [7:0]
+}
+
+FORMAT acc {
+    bits: 8
+    field opcode [7:0]
+}
+
+FORMAT imm8 {
+    bits: 16
+    field opcode [15:8]
+    field imm    [7:0]
+}
+
+FORMAT zp {
+    bits: 16
+    field opcode [15:8]
+    field zp     [7:0]
+}
+
+FORMAT zpX {
+    bits: 16
+    field opcode [15:8]
+    field zp     [7:0]
+}
+
+FORMAT zpY {
+    bits: 16
+    field opcode [15:8]
+    field zp     [7:0]
+}
+
+FORMAT abs {
+    bits: 24
+    field opcode [23:16]
+    field lo     [15:8]
+    field hi     [7:0]
+}
+
+FORMAT absX {
+    bits: 24
+    field opcode [23:16]
+    field lo     [15:8]
+    field hi     [7:0]
+}
+
+FORMAT absY {
+    bits: 24
+    field opcode [23:16]
+    field lo     [15:8]
+    field hi     [7:0]
+}
+
+FORMAT ind {
+    bits: 24
+    field opcode [23:16]
+    field lo     [15:8]
+    field hi     [7:0]
+}
+
+FORMAT inx {
+    bits: 16
+    field opcode [15:8]
+    field zp     [7:0]
+}
+
+FORMAT iny {
+    bits: 16
+    field opcode [15:8]
+    field zp     [7:0]
+}
+
+FORMAT rel {
+    bits: 16
+    field opcode [15:8]
+    field offset [7:0]
+}
+
+# ----------------------------------
+# Template layer (macro system)
+# ----------------------------------
+# ----------------------------------
+# Instruction set (official opcodes)
+# ----------------------------------
+# ===== Load / Store =====
+TEMPLATE LDA(FMT, MASK) {
+    opcode      : 0xA0 | MASK,
+    operands    : [ reg:A, FMT ],
+    flags_read  : N,
+    flags_write : N | Z
+}
+
+TEMPLATE STA(FMT, MASK) {
+    opcode      : 0x80 | MASK,
+    operands    : [ reg:A, FMT ],
+    flags_write : none
+}
+
+TEMPLATE LDX(FMT, MASK) {
+    opcode      : 0xA2 | MASK,
+    operands    : [ reg:X, FMT ],
+    flags_read  : N,
+    flags_write : N | Z
+}
+
+TEMPLATE STX(FMT, MASK) {
+    opcode      : 0x86 | MASK,
+    operands    : [ reg:X, FMT ],
+    flags_write : none
+}
+
+# ===== Arithmetic =====
+TEMPLATE ADC(FMT, MASK) {
+    opcode      : 0x60 | MASK,
+    operands    : [ reg:A, FMT ],
+    flags_read  : N | Z | C | V,
+    flags_write : N | Z | C | V
+}
+
+TEMPLATE SBC(FMT, MASK) {
+    opcode      : 0xE0 | MASK,
+    operands    : [ reg:A, FMT ],
+    flags_read  : N | Z | C | V,
+    flags_write : N | Z | C | V
+}
+
+# ===== Logical =====
+TEMPLATE AND(FMT, MASK) {
+    opcode      : 0x20 | MASK,
+    operands    : [ reg:A, FMT ],
+    flags_read  : N | Z,
+    flags_write : N | Z
+}
+
+TEMPLATE EOR(FMT, MASK) {
+    opcode      : 0x40 | MASK,
+    operands    : [ reg:A, FMT ],
+    flags_read  : N | Z,
+    flags_write : N | Z
+}
+
+TEMPLATE ORA(FMT, MASK) {
+    opcode      : 0x00 | MASK,
+    operands    : [ reg:A, FMT ],
+    flags_read  : N | Z,
+    flags_write : N | Z
+}
+
+# ===== Compare =====
+TEMPLATE CMP(FMT, MASK) {
+    opcode      : 0xC0 | MASK,
+    operands    : [ reg:A, FMT ],
+    flags_read  : N | Z | C,
+    flags_write : N | Z | C
+}
+
+TEMPLATE CPX(FMT, MASK) {
+    opcode      : 0xE0 | MASK,
+    operands    : [ reg:X, FMT ],
+    flags_read  : N | Z | C,
+    flags_write : N | Z | C
+}
+
+TEMPLATE CPY(FMT, MASK) {
+    opcode      : 0xC0 | MASK,
+    operands    : [ reg:Y, FMT ],
+    flags_read  : N | Z | C,
+    flags_write : N | Z | C
+}
+
+FOREACH (FMT, MASK) IN [
+    (imm8,    0x09),
+    (zp,      0x05),
+    (zp_x,    0x15),
+    (abs,     0x0D),
+    (abs_x,   0x1D),
+    (abs_y,   0x19),
+    (ind_x,   0x01),
+    (ind_y,   0x11)
+] {
+    LDA(FMT, MASK)
+    STA(FMT, MASK)
+    ADC(FMT, MASK)
+    SBC(FMT, MASK)
+    AND(FMT, MASK)
+    EOR(FMT, MASK)
+    ORA(FMT, MASK)
+    CMP(FMT, MASK)
+}
+
+FOREACH (FMT, MASK) IN [
+    (imm8,  0xA2),
+    (zp,    0xA6),
+    (abs,   0xAE)
+] {
+    LDX(FMT, MASK)
+}
+
+FOREACH (FMT, MASK) IN [
+    (zp,    0x86),
+    (abs,   0x8E)
+] {
+    STX(FMT, MASK)
+}
+
+FOREACH (FMT, MASK) IN [
+    (imm8,  0xE0),
+    (zp,    0xE4),
+    (abs,   0xEC)
+] {
+    CPX(FMT, MASK)
+}
+
+FOREACH (FMT, MASK) IN [
+    (imm8,  0xC0),
+    (zp,    0xC4),
+    (abs,   0xCC)
+] {
+    CPY(FMT, MASK)
+}

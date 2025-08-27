@@ -1,0 +1,437 @@
+%YAML 1.2
+---
+name: ISDL
+file_extensions:
+  - isdl
+scope: source.isdl
+
+contexts:
+  # ----- Main context -----
+  main:
+    - include: comments
+    - include: imports
+    - include: arch
+    - include: reg_class
+    - include: format
+    - include: loop-block
+    - include: template
+    - include: template-call
+    - include: instr
+    - include: numbers
+    - include: strings
+    - include: flags
+    - include: punctuation
+    - include: var-decl
+    - include: var-assign
+
+  # ----- Comments -----
+  comments:
+    - match: '#.*$'
+      scope: comment.line.number-sign.isdl
+    - match: '//.*$'
+      scope: comment.line.double-slash.isdl
+
+  # ----- Variable ----- #
+  variable:
+    - match: '\b[A-Za-z_][A-Za-z0-9_]*\b'
+      scope: variable.isdl
+
+  # ----- Numbers -----
+  numbers:
+    - match: \b0x[0-9A-Fa-f]+\b
+      scope: constant.numeric.hex.isdl
+    - match: \b0b[01]+\b
+      scope: constant.numeric.binary.isdl
+    - match: \b\d+\b
+      scope: constant.numeric.decimal.isdl
+
+  # ----- Strings -----
+  strings:
+    - match: '"([^"\\]|\\.)*"'
+      scope: string.quoted.double.isdl
+
+  # ----- Bit slice -----
+  bit-slice:
+    - match: '\['
+      scope: punctuation.section.brackets.begin.isdl
+    - include: numbers
+    - match: ':'
+      scope: punctuation.separator.range.isdl
+    - include: numbers
+    - match: '\]'
+      scope: punctuation.section.brackets.end.isdl
+
+  
+
+  # # ----- Values -----
+  # value:  
+  #   # Nested block inside value
+  #   - include: kv-block
+  #   # Lists inside value
+  #   - include: list
+  #   # String / numeric literals
+  #   - include: strings
+  #   - include: numbers
+  #   # Operand with optional trailing comma
+  #   - include: operand
+  #   # Dot‑access and identifiers
+  #   - include: dot-access
+  #   # Comma — only if nothing else matched
+  #   - match: '(?=,)'
+  #     scope: punctuation.separator.sequence.isdl
+  #     pop: true
+  #   - match: '(?=\})'
+  #     scope: punctuation.section.block.end.isdl
+  #     pop: 2
+
+  # Variable Declaration
+  var-decl:
+    - match: \bLET\b
+      scope: keyword.type.declaration.isdl
+      push:
+        - meta_scope: meta.declaration.variable.isdl
+        # Variable name
+        - match: '\b[A-Za-z_][A-Za-z0-9_]*\b'
+          scope: variable.other.declaration.isdl
+        # Optional init
+        - match: '='
+          scope: keyword.operator.assignment.isdl
+          push:
+            - meta_scope: meta.assignment.rhs.isdl
+            - include: value
+            - match: '(?=$|\n|;)'
+              pop: true
+        - match: '(?=$|;)'
+          pop: true
+
+  # Variable Assignment (non-declaration)
+  var-assign:
+    - match: variable
+    - match: '='
+      scope: keyword.operator.assignment.isdl
+      push:
+        - meta_scope: meta.assignment.rhs.isdl
+        - include: value
+        - match: '(?=$|\n|;)'
+          pop: true
+
+  
+
+  # ----- LIST -------
+  list-items:
+    - include: comments
+    - include: numbers
+    - include: strings
+    - include: kv-block
+    - include: operand
+    - include: list
+    - include: variable
+    # Comma separator
+    - match: ','
+      scope: punctuation.separator.sequence.isdl
+
+  list:
+    - match: '\['
+      scope: punctuation.section.group.begin.isdl
+      push:
+        - meta_scope: meta.group.list.isdl
+        - include: list-items
+        - match: '\]'
+          scope: punctuation.section.group.end.isdl
+          pop: true
+
+  # ----- Loop block -----
+  loop-block:
+    - match: \bFOR\b
+      scope: keyword.control.loop.for.isdl
+      push: loop-header-var
+
+  # Expect the loop variable next
+  loop-header-var:
+    - meta_scope: meta.loop.header.isdl
+    - include: comments
+    - match: '\b[A-Za-z_][A-Za-z0-9_]*\b'
+      scope: variable.parameter.loop.isdl
+      set: loop-header-in
+    - match: '$'
+      pop: true
+
+  # Expect IN next
+  loop-header-in:
+    - include: comments
+    - match: \bIN\b
+      scope: keyword.control.loop.in.isdl
+      set: loop-header-coll
+    - match: '$'
+      pop: true
+
+  # Expect the collection next, then the opening brace
+  loop-header-coll:
+    - include: comments
+    - include: list
+    - match: '\b[A-Za-z_][A-Za-z0-9_]*\b'
+      scope: variable.parameter.collection.isdl
+      set: loop-header-open
+    - match: '$'
+      pop: true
+
+  loop-header-open:
+    - include: comments
+    - match: '\{'
+      scope: punctuation.section.block.begin.isdl
+      set: loop-body
+    - match: '$'
+      pop: true
+
+  loop-body:
+    - meta_scope: meta.block.loop.isdl
+    - include: comments
+    - include: dot-access
+    - include: numbers
+    - include: strings
+
+    # allow nesting and normal constructs inside the loop
+    - include: loop-block
+    - include: instr
+    - include: kv-block
+    - include: template
+
+    - match: '\}'
+      scope: punctuation.section.block.end.isdl
+      pop: true
+
+  # Add dot-access helper so e.format etc. can be scoped if desired
+  dot-access:
+    - match: '\b[A-Za-z_][A-Za-z0-9_]*\b(?=\.)'
+      scope: variable.object.isdl
+    - match: '\.'
+      scope: punctuation.accessor.dot.isdl
+    - match: '\b[A-Za-z_][A-Za-z0-9_]*\b'
+      scope: variable.property.isdl
+
+  # ----- IMPORT statement -----
+  imports:
+    - match: \bIMPORT\b
+      scope: keyword.control.import.isdl
+      push:
+        - meta_scope: meta.import.isdl
+        - include: strings
+        - match: ';'
+          scope: punctuation.terminator.isdl
+          pop: true
+        - match: '$'
+          pop: true
+
+  # ----- ARCH block -----
+  arch:
+    - match: \bARCH\b
+      scope: keyword.control.arch.isdl
+      push:
+        - meta_scope: meta.declaration.arch.isdl
+        - match: '\b[A-Za-z_][A-Za-z0-9_]*\b'
+          scope: entity.name.type.arch.isdl
+        - include: kv-block
+        - match: '$'
+          pop: true
+
+  # ----- REG_CLASS block -----
+  reg_class:
+    - match: \bREG_CLASS\b
+      scope: keyword.control.regclass.isdl
+      push:
+        - meta_scope: meta.declaration.regclass.isdl
+        - match: '\b[A-Za-z_][A-Za-z0-9_]*\b'
+          scope: entity.name.type.regclass.isdl
+        - match: '\{'
+          scope: punctuation.section.block.begin.isdl
+          push:
+            - meta_scope: meta.block.regclass.isdl
+            - match: '\b[A-Za-z_][A-Za-z0-9_]*\b'
+              scope: variable.parameter.register.isdl
+            - match: ','
+              scope: punctuation.separator.sequence.isdl
+            - match: '\}'
+              scope: punctuation.section.block.end.isdl
+              pop: true
+        - match: '$'
+          pop: true
+
+  # ----- FORMAT block -----
+  format:
+    - match: \bFORMAT\b
+      scope: keyword.control.format.isdl
+      push:
+        - meta_scope: meta.declaration.format.isdl
+        - match: '\b[A-Za-z_][A-Za-z0-9_]*\b'
+          scope: entity.name.type.format.isdl
+        - match: '\{'
+          scope: punctuation.section.block.begin.isdl
+          push:
+            - meta_scope: meta.block.format.isdl
+            - match: \bbits\b
+              scope: storage.modifier.bits.isdl
+            - include: numbers
+            - match: \bfield\b
+              scope: keyword.declaration.field.isdl
+              push:
+                - meta_scope: meta.field.isdl
+                - match: '\b[A-Za-z_][A-Za-z0-9_]*\b'
+                  scope: variable.other.member.field.isdl
+                - include: bit-slice
+                - match: (?=\s*(?:field\b|\}))
+                  pop: true
+            - match: '\}'
+              scope: punctuation.section.block.end.isdl
+              pop: true
+        - match: '$'
+          pop: true
+
+
+  instr-body:
+    - meta_scope: meta.block.instr.isdl
+    - include: comments
+    - include: numbers
+    - include: strings
+    - include: loop-block
+
+    # Keys before a colon
+    - match: '\b[A-Za-z_][A-Za-z0-9_]*\b(?=\s*:)'
+      scope: variable.other.key.instr.isdl
+    - match: ':'
+      scope: punctuation.separator.key-value.isdl
+
+    # Parameters (ALLCAPS or name:size) inside INSTR body
+    - match: '\b[A-Za-z_][A-Za-z0-9_]*\b(?=\s*:)'
+      scope: variable.parameter.sized.instr.isdl
+    - match: '\b[A-Z][A-Z0-9_]*\b'
+      scope: variable.parameter.instr.isdl
+
+    # Normal identifiers
+    - match: '\b[A-Za-z_][A-Za-z0-9_]*\b'
+      scope: variable.other.value.instr.isdl
+
+    # Nested blocks
+    - match: '\{'
+      scope: punctuation.section.block.begin.isdl
+      push:
+        - meta_scope: meta.block.inner.instr.isdl
+        - include: comments
+        - include: numbers
+        - include: strings
+        - match: '\}'
+          scope: punctuation.section.block.end.isdl
+          pop: true
+
+    # End of INSTR body
+    - match: '\}'
+      scope: punctuation.section.block.end.isdl
+      pop: true
+
+  # ===== TEMPLATE =====
+  template  :
+    - match: \bTEMPLATE\b
+      scope: keyword.control.template.isdl
+      push:
+        - meta_scope: meta.declaration.template.isdl
+
+        # Template name
+        - match: '\b[A-Za-z_][A-Za-z0-9_]*\b'
+          scope: entity.name.function.template.isdl
+
+        # Parameters list (…)
+        - match: '\('
+          scope: punctuation.section.parameters.begin.isdl
+          push:
+            - meta_scope: meta.parameters.template.isdl
+            - include: strings
+            - match: '\b[A-Za-z_][A-Za-z0-9_]*\b'
+              scope: variable.parameter.template.isdl
+            - match: ','
+              scope: punctuation.separator.sequence.isdl
+            - match: '\)'
+              scope: punctuation.section.parameters.end.isdl
+              pop: true
+
+        # Colon + format (parameter‑aware)
+        - match: ':'
+          scope: punctuation.separator.template-format.isdl
+        - match: '\b[A-Za-z_][A-Za-z0-9_]*\b(?=\s*:)'
+          scope: variable.parameter.sized.template.isdl
+        - match: '\b[A-Z][A-Z0-9_]*\b'
+          scope: variable.parameter.template.isdl
+        - match: '\b[A-Za-z_][A-Za-z0-9_]*\b'
+          scope: variable.other.format.isdl
+
+        # Body {…} — reuses your instr-body rules
+        - match: '\{'
+          scope: punctuation.section.block.begin.isdl
+          push: instr-body
+
+        # End of declaration without body
+        - match: '$'
+          pop: true
+
+  # ------ Template Call ----- #
+  template-call:
+  - match: '\b[A-Za-z_][A-Za-z0-9_]*\b(?=\s*\()'
+    scope: entity.name.function.template.call.isdl
+    push:
+      - meta_scope: meta.call.template.isdl
+      - include: list-items      # reuse your existing operand/number/string parsing
+      - match: '\('
+        scope: punctuation.section.group.begin.isdl
+        push:
+          - meta_scope: meta.group.arguments.isdl
+          - include: list-items
+          - match: '\b[A-Za-z_][A-Za-z0-9_]*\b(?=\s*=)'
+            scope: variable.parameter.template.arg.isdl
+          - match: '='
+            scope: keyword.operator.assignment.isdl
+          - include: value
+          - match: '\)'
+            scope: punctuation.section.group.end.isdl
+            pop: true
+      - match: '(?=\s|$|;)'
+        pop: true
+
+  # ----- INSTR block -----
+  instr:
+    - match: \bINSTR\b
+      scope: keyword.control.instr.isdl
+      push:
+        - meta_scope: meta.declaration.instr.isdl
+        - match: '\b[A-Za-z_][A-Za-z0-9_]*\b'
+          scope: entity.name.function.instr.isdl
+        - match: ':'
+          scope: punctuation.separator.instr-format.isdl
+        - match: '\b[A-Za-z_][A-Za-z0-9_]*\b'
+          scope: entity.name.type.formatref.isdl
+        - include: kv-block
+        - match: '$'
+          pop: true
+
+  # ----- key/value block -----
+  kv-block:
+    - match: '\{'
+      scope: punctuation.section.block.begin.isdl
+      push: key
+
+  # ---- Keys ------
+  key:
+    - match: '\b([A-Za-z_][A-Za-z0-9_]*)\b(?=\s*:)'
+      scope: variable.parameter.key.isdl
+      push: value
+
+  # ----- Flags -----
+  flags:
+    - match: \b[RW]\b
+      scope: storage.modifier.flagmode.isdl
+    - match: '\('
+      scope: punctuation.section.group.begin.isdl
+    - match: '\)'
+      scope: punctuation.section.group.end.isdl
+
+  # ----- Punctuation -----
+  punctuation:
+    - match: '[\{\}\[\]\(\)\:\=\,]'
+      scope: punctuation.isdl

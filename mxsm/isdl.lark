@@ -1,0 +1,50 @@
+// isdl.lark
+start: statement*
+
+?statement: import_stmt
+          | arch
+          | reg_class
+          | format
+          | instr
+
+import_stmt: "IMPORT" STRING [";"]
+
+arch: "ARCH" CNAME kv_block
+
+reg_class: "REG_CLASS" CNAME
+           "{" name_list? "}"
+
+format: "FORMAT" CNAME
+        "{" format_body "}"
+
+format_body: "bits" ":" NUMBER
+              ("field" CNAME bit_slice)*
+            | ("field" CNAME bit_slice)+   // bits could be first or implicit if known
+
+instr: "INSTR" CNAME ":" CNAME kv_block
+
+kv_block: "{" kv_pair* "}"
+kv_pair: CNAME ("="|":") value
+        | CNAME kv_block                 -> subblock
+
+?value: NUMBER
+      | STRING
+      | name_list
+      | flags_expr
+
+name_list: CNAME ("," CNAME)*
+
+bit_slice: "[" NUMBER ":" NUMBER "]"
+
+flags_expr: (flagset)+
+flagset: ("R"|"W") "(" name_list? ")"
+
+COMMENT: /#.*|\/\/.*/
+WS: /[ \t\r\n]+/ -> skip
+
+STRING: ESCAPED_STRING
+CNAME: /[A-Za-z_][A-Za-z0-9_]*/
+NUMBER: /0x[0-9A-Fa-f]+|0b[01]+|[0-9]+/
+
+%import common.ESCAPED_STRING
+
