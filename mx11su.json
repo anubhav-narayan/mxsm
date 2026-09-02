@@ -1,0 +1,103 @@
+{
+  "isa": "MX11",
+  "word_size": 8,
+  "endianness": "big",
+  "registers": {
+    "A": 0, "X": 1, "Y": 2, "D": 3,
+    "DAR": 4, "MBR": 5, "INSP": 6, "FLAGS": 7,
+    "SA": 8, "SX": 9, "SY": 10, "SD": 11,
+    "R0": 12, "R1": 13, "R2": 14, "R3": 15
+  },
+  "instructions": [
+    {"mnemonic": "NOP",  "operands": [], "encoding": "00000000"},
+    {"mnemonic": "HALT", "operands": [], "encoding": "11111111"},
+
+    {
+      "mnemonic": "MOV",
+      "operands": [
+        {
+          "name": "dst",
+          "type": "register",
+          "values": {"A": 0, "X": 1, "Y": 2, "D": 3, "SA": 4, "SX": 5, "SY": 6, "SD": 7}
+        },
+        {
+          "name": "src",
+          "type": "register",
+          "values": {"A": 0, "X": 1, "Y": 2, "D": 3, "DAR": 4, "MBR": 5, "INSP": 6, "FLAGS": 7, "SA": 8, "SX": 9, "SY": 10, "SD": 11, "R0": 12, "R1": 13, "R2": 14, "R3": 15}
+        }
+      ],
+      "encoding": "0 {dst:3} {src:4}"
+    },
+    {
+      "mnemonic": "CLR",
+      "operands": [
+        {
+          "name": "reg",
+          "type": "register",
+          "values": {"A": 0, "X": 1, "Y": 2, "D": 3, "SA": 4, "SX": 5, "SY": 6, "SD": 7}
+        }
+      ],
+      "encoding": "10000 {reg:3}"
+    },
+    {
+      "mnemonic": "INCR",
+      "operands": [
+        {
+          "name": "reg",
+          "type": "register",
+          "values": {"A": 0, "X": 1, "Y": 2, "D": 3, "SA": 4, "SX": 5, "SY": 6, "SD": 7}
+        }
+      ],
+      "encoding": "10001 {reg:3}"
+    },
+    {
+      "mnemonic": "DECR",
+      "operands": [
+        {
+          "name": "reg",
+          "type": "register",
+          "values": {"A": 0, "X": 1, "Y": 2, "D": 3, "SA": 4, "SX": 5, "SY": 6, "SD": 7}
+        }
+      ],
+      "encoding": "10010 {reg:3}"
+    },
+    {
+      "mnemonic": "NOT",
+      "operands": [
+        {
+          "name": "reg",
+          "type": "register",
+          "values": {"A": 0, "X": 1, "Y": 2, "D": 3, "SA": 4, "SX": 5, "SY": 6, "SD": 7}
+        }
+      ],
+      "encoding": "10011 {reg:3}"
+    },
+    {
+      "mnemonic": "BZ",
+      "operands": [
+        {
+          "name": "base",
+          "type": "selector",
+          "values": {"": 0, "INSP": 1}
+        },
+        {
+          "name": "reg",
+          "type": "register",
+          "values": {"A": 0, "X": 1, "Y": 2, "D": 3, "SA": 4, "SX": 5, "SY": 6, "SD": 7}
+        }
+      ],
+      "encoding": "1010 {base:1} {reg:3}"
+    },
+    {
+      "mnemonic": "LDI",
+      "operands": [
+        {
+          "name": "imm4",
+          "type": "immediate",
+          "size": 4
+        }
+      ],
+      "encoding": "1110 {imm4:4}"
+    }
+  ]
+}
