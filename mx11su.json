@@ -143,7 +143,25 @@
           "values": {"": 0, "X": 1, "Y": 2, "D": 3}
         }
       ],
-      "encoding": "110000 {pair:2}"
+      "encoding": "110000 {pair:2}",
+      "aliases":[
+        {
+          "operands":["X", "Y"],
+          "values":{"pair":0}
+        },
+        {
+          "operands":["A", "X"],
+          "values":{"pair":1}
+        },
+        {
+          "operands":["A", "Y"],
+          "values":{"pair":2}
+        },
+        {
+          "operands":["A", "D"],
+          "values":{"pair":3}
+        }
+      ]
     },
     {
       "mnemonic": "ADC",
@@ -154,7 +172,25 @@
           "values": {"": 0, "X": 1, "Y": 2, "D": 3}
         }
       ],
-      "encoding": "110001 {pair:2}"
+      "encoding": "110001 {pair:2}",
+      "aliases":[
+        {
+          "operands":["X", "Y"],
+          "values":{"pair":0}
+        },
+        {
+          "operands":["A", "X"],
+          "values":{"pair":1}
+        },
+        {
+          "operands":["A", "Y"],
+          "values":{"pair":2}
+        },
+        {
+          "operands":["A", "D"],
+          "values":{"pair":3}
+        }
+      ]
     },
     {
       "mnemonic": "SUB",
@@ -165,7 +201,25 @@
           "values": {"": 0, "X": 1, "Y": 2, "D": 3}
         }
       ],
-      "encoding": "110010 {pair:2}"
+      "encoding": "110010 {pair:2}",
+      "aliases":[
+        {
+          "operands":["X", "Y"],
+          "values":{"pair":0}
+        },
+        {
+          "operands":["A", "X"],
+          "values":{"pair":1}
+        },
+        {
+          "operands":["A", "Y"],
+          "values":{"pair":2}
+        },
+        {
+          "operands":["A", "D"],
+          "values":{"pair":3}
+        }
+      ]
     },
     {
       "mnemonic": "SBC",
@@ -176,7 +230,25 @@
           "values": {"": 0, "X": 1, "Y": 2, "D": 3}
         }
       ],
-      "encoding": "110011 {pair:2}"
+      "encoding": "110011 {pair:2}",
+      "aliases":[
+        {
+          "operands":["X", "Y"],
+          "values":{"pair":0}
+        },
+        {
+          "operands":["A", "X"],
+          "values":{"pair":1}
+        },
+        {
+          "operands":["A", "Y"],
+          "values":{"pair":2}
+        },
+        {
+          "operands":["A", "D"],
+          "values":{"pair":3}
+        }
+      ]
     },
     {
       "mnemonic": "AND",
@@ -187,7 +259,25 @@
           "values": {"": 0, "X": 1, "Y": 2, "D": 3}
         }
       ],
-      "encoding": "110100 {pair:2}"
+      "encoding": "110100 {pair:2}",
+      "aliases":[
+        {
+          "operands":["X", "Y"],
+          "values":{"pair":0}
+        },
+        {
+          "operands":["A", "X"],
+          "values":{"pair":1}
+        },
+        {
+          "operands":["A", "Y"],
+          "values":{"pair":2}
+        },
+        {
+          "operands":["A", "D"],
+          "values":{"pair":3}
+        }
+      ]
     },
     {
       "mnemonic": "OR",
@@ -198,7 +288,25 @@
           "values": {"": 0, "X": 1, "Y": 2, "D": 3}
         }
       ],
-      "encoding": "110101 {pair:2}"
+      "encoding": "110101 {pair:2}",
+      "aliases":[
+        {
+          "operands":["X", "Y"],
+          "values":{"pair":0}
+        },
+        {
+          "operands":["A", "X"],
+          "values":{"pair":1}
+        },
+        {
+          "operands":["A", "Y"],
+          "values":{"pair":2}
+        },
+        {
+          "operands":["A", "D"],
+          "values":{"pair":3}
+        }
+      ]
     },
     {
       "mnemonic": "XOR",
@@ -209,7 +317,25 @@
           "values": {"": 0, "X": 1, "Y": 2, "D": 3}
         }
       ],
-      "encoding": "110110 {pair:2}"
+      "encoding": "110110 {pair:2}",
+      "aliases":[
+        {
+          "operands":["X", "Y"],
+          "values":{"pair":0}
+        },
+        {
+          "operands":["A", "X"],
+          "values":{"pair":1}
+        },
+        {
+          "operands":["A", "Y"],
+          "values":{"pair":2}
+        },
+        {
+          "operands":["A", "D"],
+          "values":{"pair":3}
+        }
+      ]
     },
     {
       "mnemonic": "CMP",
@@ -220,7 +346,25 @@
           "values": {"": 0, "X": 1, "Y": 2, "D": 3}
         }
       ],
-      "encoding": "110111 {pair:2}"
+      "encoding": "110111 {pair:2}",
+      "aliases":[
+        {
+          "operands":["X", "Y"],
+          "values":{"pair":0}
+        },
+        {
+          "operands":["A", "X"],
+          "values":{"pair":1}
+        },
+        {
+          "operands":["A", "Y"],
+          "values":{"pair":2}
+        },
+        {
+          "operands":["A", "D"],
+          "values":{"pair":3}
+        }
+      ]
     },
     {
       "mnemonic": "LDI",

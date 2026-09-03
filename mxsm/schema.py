@@ -188,8 +188,6 @@ class ISA:
                 alias_values = alias.get("values")
                 if not isinstance(alias_operands, list) or not all(isinstance(value, str) for value in alias_operands):
                     raise ISAError(f"{mnemonic}: alias {alias_index} operands must be an array of strings")
-                if len(alias_operands) != len(operands):
-                    raise ISAError(f"{mnemonic}: alias {alias_index} has the wrong operand count")
                 if not isinstance(alias_values, dict) or set(alias_values) != {operand.name for operand in operands}:
                     raise ISAError(f"{mnemonic}: alias {alias_index} values must map every operand")
             form = InstructionDef(mnemonic, operands, encoding, raw.get("meta", {}), aliases)

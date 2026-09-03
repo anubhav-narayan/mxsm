@@ -24,6 +24,15 @@ class ISASchemaTests(unittest.TestCase):
         self.assertEqual(without_selector.encoded, b"\xa0")
         self.assertEqual(with_selector.encoded, b"\xa8")
 
+    def test_alias_can_have_different_operand_count(self):
+        isa = ISA.from_json("mx11su.json")
+
+        implicit = assemble_line(isa, "ADD")
+        explicit = assemble_line(isa, "ADD X, Y")
+
+        self.assertEqual(implicit.encoded, b"\xc0")
+        self.assertEqual(explicit.encoded, b"\xc0")
+
     def test_alias_rewrites_source_operands(self):
         isa = ISA.from_json("mx11su.json")
 
