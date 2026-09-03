@@ -1,37 +1,34 @@
-; Programme to add two numbers in memory
-; Architectue: MX11SU
+; Programme count loop from 0 to 5
+; Architectue: MX/11
 ; Programmer: Anubhav Mattoo
 
+.macro LOOP reg, limit, pointer
+    INCR \reg               ; A <- A + 1
+    CMP \reg, \limit        ; Compare A and Y if A<Y carry is set.
+    BC  \pointer            ; If A < Y, branch to loop
+.endmacro
+
 .data
-; Data Segment of the Programme
-.byte &main
-.byte 0x03
-.byte 0x01
-.res 1
+    .byte &main
+    .byte &loop
 
 .ins
-; Instruction Segment of the Programme
 main:
-	CLR                ; Clear A
-	INCR D             ; Increment D to point at the first number
-	LD A               ; Load the number to A
-	MOV X, A           ; Move the number from A to X
-	INCR D             ; Increment D to point at the second number
-	LD A               ; Load the number to A
-	MOV Y, A           ; Move the number from A to Y
-	ADD                ; Add values in X and Y and store in A
-	INCR D             ; Increment D to point at the result address
-	ST A               ; Store A at address in D
-	CLR FLAGS          ; Clear Flags to jump back
-	CLR D              ; Clear D to point at 0 in memory
-	JNC                ; Loop to address in D &main
-
+    LDI 0x0         ; MBR <- 0
+    MOV A, MBR      ; A <- 0 (initialize counter)
+    LDI 0x5         ; MBR <- 5 (loop limit N = 5)
+    MOV Y, MBR      ; Y <- 5
+    INCR D          ; Increment D to point to &loop
+    LD              ; Load &loop to MBR
+    MOV X, MBR      ; Store &loop in X
+loop:
+    LOOP A, Y, X    ; Loop until A < Y
+    HALT            ; Stop execution
 .nmi
 ; NMI Handler
-	CLR D              ; Clear D to point at 0 in memory
-	JNC                ; Loop to address in D &main
-
+    CLR D              ; Clear D to point at main
+    BZ D               ; Loop to address in D &main
 .irq
 ; Interrupt Service Routine
-	CLR D              ; Clear D to point at 0 in memory
-	JNC                ; Loop to address in D &main
+    CLR D              ; Clear D to point at main
+    BZ D               ; Loop to address in D &main

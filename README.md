@@ -5,6 +5,7 @@ MX Cross Assembler is a command-line tool for assembling machine code for the MX
 ## Features
 
 - **Source Code Parsing**: Reads and tokenizes the MX11 assembly source code(or any other, if you have the correct `prod.json.tab`).
+- **Assembly Macros**: Reuse parameterized instruction sequences with local labels. See [docs/macros.md](docs/macros.md).
 - **Instruction and Data Segmentation**: Separates `.data` and `.ins` directives into respective memory segments.
 - **Code Segmenetation**: Separates the code into `.ins` and `.nmi`, `.irq` sections for interrupt service routines.
 - **Symbol Resolution**: Handles labels and symbolic addresses.

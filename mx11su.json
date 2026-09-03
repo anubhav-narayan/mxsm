@@ -3,6 +3,8 @@
   "address_width": 8,
   "data_width": 8,
   "endianness": "big",
+  "nmi_vector": 128,
+  "irq_vector": 192,
   "registers": {
     "A": 0, "X": 1, "Y": 2, "D": 3,
     "DAR": 4, "MBR": 5, "INSP": 6, "FLAGS": 7,
