@@ -12,6 +12,7 @@ class TokenType(Enum):
     ADDRESS_NUMBER = auto()
     COMMENT = auto()
     WHITESPACE = auto()
+    SYMBOL = auto()
 
 class Token:
 
@@ -29,11 +30,13 @@ class Tokenizer:
     def __init__(self, insr_list, reg_list):
         self.INSR_LIST = insr_list
         self.REG_LIST = reg_list
+        instructions = "|".join(re.escape(name) for name in self.INSR_LIST) or r"(?!)"
+        registers = "|".join(re.escape(name) for name in self.REG_LIST) or r"(?!)"
         self.token_specification = [
-            (TokenType.INSTRUCTION, rf'\b(?:{"|".join(self.INSR_LIST)})\b'),
-            (TokenType.REGISTER, rf'\b(?:{"|".join(self.REG_LIST)})\b'),
+            (TokenType.INSTRUCTION, rf'\b(?:{instructions})\b'),
+            (TokenType.REGISTER, rf'\b(?:{registers})\b'),
             (TokenType.NUMBER, r'\b(?:0[xX][0-9a-fA-F]+|0[bB][01]+|0[oO]?[0-7]+|\d+)\b'),
-            (TokenType.LABEL, r'^(?:(?!\:)[A-Za-z_][A-Za-z0-9_]*)+'),
+            (TokenType.LABEL, r'\b[A-Za-z_][A-Za-z0-9_]*(?=\s*:)'),
             (TokenType.DIRECTIVE, r'\.[A-Za-z_][A-Za-z0-9_]*\b'),
             (TokenType.ADDRESS_LABEL, r'&[A-Za-z_][A-Za-z0-9_]*\b'),
             (TokenType.ADDRESS_NUMBER, r'&(?:0[xX][0-9a-fA-F]+|0[bB][01]+|0[oO]?[0-7]+|\d+)\b'),
@@ -42,7 +45,10 @@ class Tokenizer:
             (TokenType.WHITESPACE, r'[ \t\n]+')
         ]
 
-        self.token_re = '|'.join(f'(?P<{pair[0].name}>{pair[1]})' for pair in self.token_specification)
+        self.token_re = re.compile(
+            '|'.join(f'(?P<{pair[0].name}>{pair[1]})' for pair in self.token_specification),
+            re.IGNORECASE,
+        )
 
     def tokenize(self, code):
         code = code.splitlines()
@@ -53,7 +59,7 @@ class Tokenizer:
 
     def tokenize_line(self, line, line_number):
         tokens = []
-        for match in re.finditer(self.token_re, line):
+        for match in self.token_re.finditer(line):
             type_name = match.lastgroup
             value = match.group(type_name)
             start_pos = match.start()

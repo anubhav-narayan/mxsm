@@ -1,6 +1,7 @@
 {
-  "isa": "MX11",
-  "word_size": 8,
+  "isa": "MX/11-70",
+  "address_width": 8,
+  "data_width": 8,
   "endianness": "big",
   "registers": {
     "A": 0, "X": 1, "Y": 2, "D": 3,
@@ -11,7 +12,6 @@
   "instructions": [
     {"mnemonic": "NOP",  "operands": [], "encoding": "00000000"},
     {"mnemonic": "HALT", "operands": [], "encoding": "11111111"},
-
     {
       "mnemonic": "MOV",
       "operands": [
@@ -26,7 +26,37 @@
           "values": {"A": 0, "X": 1, "Y": 2, "D": 3, "DAR": 4, "MBR": 5, "INSP": 6, "FLAGS": 7, "SA": 8, "SX": 9, "SY": 10, "SD": 11, "R0": 12, "R1": 13, "R2": 14, "R3": 15}
         }
       ],
-      "encoding": "0 {dst:3} {src:4}"
+      "encoding": "0 {dst:3} {src:4}",
+      "aliases": [
+        {
+          "operands": ["MBR", "X"],
+          "values": {"dst": 1, "src": "X"}
+        },
+        {
+          "operands": ["MBR", "Y"],
+          "values": {"dst": 2, "src": "Y"}
+        },
+        {
+          "operands": ["MBR", "D"],
+          "values": {"dst": 3, "src": "D"}
+        },
+        {
+          "operands": ["MBR", "SA"],
+          "values": {"dst": 4, "src": "SA"}
+        },
+        {
+          "operands": ["MBR", "SX"],
+          "values": {"dst": 5, "src": "SX"}
+        },
+        {
+          "operands": ["MBR", "SY"],
+          "values": {"dst": 6, "src": "SY"}
+        },
+        {
+          "operands": ["MBR", "SD"],
+          "values": {"dst": 7, "src": "SD"}
+        }
+      ]
     },
     {
       "mnemonic": "CLR",
@@ -89,6 +119,110 @@
       "encoding": "1010 {base:1} {reg:3}"
     },
     {
+      "mnemonic": "BC",
+      "operands": [
+        {
+          "name": "base",
+          "type": "selector",
+          "values": {"": 0, "INSP": 1}
+        },
+        {
+          "name": "reg",
+          "type": "register",
+          "values": {"A": 0, "X": 1, "Y": 2, "D": 3, "SA": 4, "SX": 5, "SY": 6, "SD": 7}
+        }
+      ],
+      "encoding": "1011 {base:1} {reg:3}"
+    },
+    {
+      "mnemonic": "ADD",
+      "operands": [
+        {
+          "name": "pair",
+          "type": "selector",
+          "values": {"": 0, "X": 1, "Y": 2, "D": 3}
+        }
+      ],
+      "encoding": "110000 {pair:2}"
+    },
+    {
+      "mnemonic": "ADC",
+      "operands": [
+        {
+          "name": "pair",
+          "type": "selector",
+          "values": {"": 0, "X": 1, "Y": 2, "D": 3}
+        }
+      ],
+      "encoding": "110001 {pair:2}"
+    },
+    {
+      "mnemonic": "SUB",
+      "operands": [
+        {
+          "name": "pair",
+          "type": "selector",
+          "values": {"": 0, "X": 1, "Y": 2, "D": 3}
+        }
+      ],
+      "encoding": "110010 {pair:2}"
+    },
+    {
+      "mnemonic": "SBC",
+      "operands": [
+        {
+          "name": "pair",
+          "type": "selector",
+          "values": {"": 0, "X": 1, "Y": 2, "D": 3}
+        }
+      ],
+      "encoding": "110011 {pair:2}"
+    },
+    {
+      "mnemonic": "AND",
+      "operands": [
+        {
+          "name": "pair",
+          "type": "selector",
+          "values": {"": 0, "X": 1, "Y": 2, "D": 3}
+        }
+      ],
+      "encoding": "110100 {pair:2}"
+    },
+    {
+      "mnemonic": "OR",
+      "operands": [
+        {
+          "name": "pair",
+          "type": "selector",
+          "values": {"": 0, "X": 1, "Y": 2, "D": 3}
+        }
+      ],
+      "encoding": "110101 {pair:2}"
+    },
+    {
+      "mnemonic": "XOR",
+      "operands": [
+        {
+          "name": "pair",
+          "type": "selector",
+          "values": {"": 0, "X": 1, "Y": 2, "D": 3}
+        }
+      ],
+      "encoding": "110110 {pair:2}"
+    },
+    {
+      "mnemonic": "CMP",
+      "operands": [
+        {
+          "name": "pair",
+          "type": "selector",
+          "values": {"": 0, "X": 1, "Y": 2, "D": 3}
+        }
+      ],
+      "encoding": "110111 {pair:2}"
+    },
+    {
       "mnemonic": "LDI",
       "operands": [
         {
@@ -98,6 +232,21 @@
         }
       ],
       "encoding": "1110 {imm4:4}"
-    }
+    },
+    {"mnemonic": "DSEL", "encoding": "11110000"},
+    {"mnemonic": "DNXT", "encoding": "11110001"},
+    {"mnemonic": "DPRV", "encoding": "11110010"},
+    {"mnemonic": "DRET", "encoding": "11110011"},
+    {"mnemonic": "CTXS", "encoding": "11110100"},
+    {"mnemonic": "CRET", "encoding": "11110101"},
+    {"mnemonic": "IRQ", "encoding": "11110110"},
+    {"mnemonic": "RTI", "encoding": "11110111"},
+    {"mnemonic": "BRZ", "encoding": "11111000"},
+    {"mnemonic": "RET", "encoding": "11111001"},
+    {"mnemonic": "SFA", "encoding": "11111010"},
+    {"mnemonic": "LFA", "encoding": "11111011"},
+    {"mnemonic": "LD", "encoding": "11111100"},
+    {"mnemonic": "ST", "encoding": "11111101"},
+    {"mnemonic": "NMI", "encoding": "11111110"}
   ]
 }

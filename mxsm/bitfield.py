@@ -17,9 +17,10 @@ Example::
     "0000 {reg:4}"          -> 8-bit instruction: fixed top nibble + register
     "011 {imm[11:5]} {rs2:5} {rs1:5} 000 {imm[4:0]} 1100011"  -> RISC-V SB-type
 
-Only byte-aligned total widths (multiple of 8 bits) are supported in this
-version; bit-packed streams that don't land on a byte boundary are a
-documented future extension (see Phase 2 notes).
+Patterns may have any positive bit width. Encoded values use the minimum
+number of bytes needed to contain the pattern; unused high bits in the first
+byte are zero. For little-endian output, those bytes are reversed after
+padding, preserving the pattern's bit ordering within the encoded word.
 """
 from __future__ import annotations
 
@@ -105,13 +106,18 @@ class BitPattern:
     def __init__(self, pattern: str):
         self.pattern = pattern
         self.segments, self.width_bits = parse_encoding(pattern)
-        if self.width_bits % 8 != 0:
-            raise EncodingError(
-                f"encoding '{pattern}' is {self.width_bits} bits wide; only "
-                f"byte-aligned (multiple of 8) widths are supported in this version"
-            )
-        self.width_bytes = self.width_bits // 8
+        if self.width_bits <= 0:
+            raise EncodingError(f"encoding '{pattern}' must have positive width")
+        self.width_bytes = (self.width_bits + 7) // 8
         self.field_names = {s.name for s in self.segments if isinstance(s, FieldSegment)}
+        self.field_widths = {
+            name: max(
+                segment.hi + 1
+                for segment in self.segments
+                if isinstance(segment, FieldSegment) and segment.name == name
+            )
+            for name in self.field_names
+        }
 
     def encode(self, operands: Dict[str, int], *, endianness: str = "big") -> bytes:
         missing = self.field_names - operands.keys()
@@ -149,6 +155,10 @@ class BitPattern:
         return int("".join(mask_bits), 2), int("".join(value_bits), 2)
 
     def matches(self, raw: int) -> bool:
+        if not isinstance(raw, int) or isinstance(raw, bool) or raw < 0:
+            return False
+        if raw >= (1 << self.width_bits):
+            return False
         mask, value = self.mask_and_value()
         return (raw & mask) == value
 
