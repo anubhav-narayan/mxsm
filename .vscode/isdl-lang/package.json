@@ -1,0 +1,25 @@
+{
+  "name": "isdl",
+  "displayName": "ISDL Language Support",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "any"
+  },
+  "contributes": {
+    "grammars": [
+      {
+        "language": "isdl",
+        "scopeName": "source.isdl",
+        "path": "./syntaxes/isdl.tmLanguage"
+      }
+    ],
+    "languages": [
+      {
+        "id": "isdl",
+        "aliases": ["ISDL"],
+        "extensions": [".isdl"],
+        "configuration": "./language-configuration.json"
+      }
+    ]
+  }
+}
