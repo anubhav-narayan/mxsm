@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from .tokenizer import Token, TokenType, Tokenizer
+from .preprocessor import MacroProcessor
 
 
 @dataclass
@@ -26,13 +27,16 @@ class SourceAnalysis:
     errors: List[str] = field(default_factory=list)
 
 
-def analyze_source(isa, source: str) -> SourceAnalysis:
+def analyze_source(isa, source: str, *, preprocess: bool = True) -> SourceAnalysis:
     """Collect functions, labels, directives, and instructions from source.
 
     Function directives are deliberately generic. A target can use ``CALL``,
     ``JSR``, or another call instruction; all instruction lines remain in the
     token stream for the later architecture-specific assembler.
     """
+    if preprocess:
+        expanded = MacroProcessor().process(source)
+        source = "\n".join(line.text for line in expanded)
     tokenizer = Tokenizer(isa.instructions, isa.registers)
     lines = tokenizer.tokenize(source)
     result = SourceAnalysis()

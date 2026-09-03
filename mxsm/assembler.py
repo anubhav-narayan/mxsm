@@ -2,6 +2,7 @@ from typing import Any
 from .tokenizer import TokenType, Token
 from .tokenizer import Tokenizer
 from .production_tree import ProductionTree
+from .preprocessor import MacroProcessor
 
 
 class Assembler:
@@ -52,6 +53,11 @@ class Assembler:
             self.sections = {keys:{} for keys in self.section_labels}
         except Exception as e:
             raise e
+
+    def preprocess(self, code: str) -> str:
+        """Expand source macros before tokenization and section analysis."""
+        expanded = MacroProcessor().process(code)
+        return "\n".join(line.text for line in expanded)
 
     def tokenize(self, code) -> dict:
         self.code = code
@@ -116,7 +122,7 @@ class Assembler:
         }
 
     def ir_pass(self, code) -> dict:
-        self.tokenize(code)
+        self.tokenize(self.preprocess(code))
         self.split_sections()
         return self.generate_ir()
 

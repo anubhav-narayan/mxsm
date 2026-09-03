@@ -42,7 +42,8 @@ class Tokenizer:
             (TokenType.ADDRESS_NUMBER, r'&(?:0[xX][0-9a-fA-F]+|0[bB][01]+|0[oO]?[0-7]+|\d+)\b'),
             (TokenType.STRING, r'"([^"\\]|\\.)*"'),
             (TokenType.COMMENT, r';.*'),
-            (TokenType.WHITESPACE, r'[ \t\n]+')
+            (TokenType.WHITESPACE, r'[ \t\n]+'),
+            (TokenType.SYMBOL, r'\b[A-Za-z_][A-Za-z0-9_]*\b')
         ]
 
         self.token_re = re.compile(
