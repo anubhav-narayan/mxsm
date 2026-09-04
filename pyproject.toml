@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "mxsm"
-version = "0.3"
+version = "0.9"
 description = "MX Cross Assembler"
 authors = ["Anubhav Mattoo"]
 license = "MIT"
@@ -16,6 +16,7 @@ prompt-toolkit = "^3.0.52"
 
 [tool.poetry.scripts]
 mxsm = "mxsm.cli:main"
+mxsm-link = "mxsm.cli:link_main"
 
 
 [build-system]

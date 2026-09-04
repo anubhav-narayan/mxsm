@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import ast
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -73,6 +74,8 @@ class Assembler:
         self.ins = b""
         self.data = b""
         self._expanded_lines: List[ExpandedLine] = []
+        self.imported_symbols: set[str] = set()
+        self.exported_symbols: set[str] = set()
 
     @staticmethod
     def _load_definition(source) -> dict:
@@ -92,9 +95,34 @@ class Assembler:
             "ISA definition must be a mapping, JSON string, path, or readable file"
         )
 
-    def preprocess(self, code: str) -> str:
+    @staticmethod
+    def _include_source(code: str, source_name: str, include_stack: tuple[Path, ...] = ()) -> str:
+        """Expand .include directives relative to the including source file."""
+        output: list[str] = []
+        base = Path(source_name).parent if source_name not in {"", "<source>"} else Path.cwd()
+        pattern = re.compile(r'^\s*\.include\s+(?:"([^"]+)"|<([^>]+)>)\s*(?:;.*)?$', re.IGNORECASE)
+        for line_number, line in enumerate(code.splitlines(), 1):
+            match = pattern.match(line)
+            if not match:
+                output.append(line)
+                continue
+            include_path = (base / (match.group(1) or match.group(2))).resolve()
+            if include_path in include_stack:
+                chain = " -> ".join(str(path) for path in (*include_stack, include_path))
+                raise AssemblyError(f"recursive .include: {chain}")
+            try:
+                included = include_path.read_text()
+            except OSError as error:
+                raise AssemblyError(
+                    f"{source_name}:{line_number}: cannot read included file {include_path}"
+                ) from error
+            output.append(Assembler._include_source(included, str(include_path), (*include_stack, include_path)))
+        return "\n".join(output)
+
+    def preprocess(self, code: str, source_name: str = "<source>") -> str:
         """Expand macros and retain the expanded source for diagnostics."""
-        self._expanded_lines = MacroProcessor().process(code)
+        code = self._include_source(code, source_name)
+        self._expanded_lines = MacroProcessor().process(code, source_name)
         return "\n".join(line.text for line in self._expanded_lines)
 
     def tokenize(self, code: str) -> dict:
@@ -203,11 +231,13 @@ class Assembler:
 
     def _pass1_data(self, tokens: List[Token], address: int) -> int:
         directive = tokens[0].value.lower()
-        if directive == ".byte":
+        if directive in {".byte", ".word"}:
             if len(tokens) == 1:
-                raise self._error(tokens[0], ".byte requires at least one value")
+                raise self._error(tokens[0], f"{directive} requires at least one value")
             for token in tokens[1:]:
                 if token.type is TokenType.STRING:
+                    if directive != ".byte":
+                        raise self._error(token, ".word does not accept strings")
                     try:
                         value = ast.literal_eval(token.value)
                     except (SyntaxError, ValueError) as error:
@@ -226,16 +256,16 @@ class Assembler:
                         else self._number(token)
                     )
                     self.mem_dict[address] = _DataItem(address, value, token)
-                    address += 1
+                    address += self.data_len if directive == ".word" else 1
                 else:
-                    raise self._error(token, "invalid .byte value")
+                    raise self._error(token, f"invalid {directive} value")
             return address
-        if directive == ".res":
+        if directive in {".res", ".space"}:
             if len(tokens) != 2 or self._number(tokens[1]) is None:
-                raise self._error(tokens[0], ".res requires one numeric count")
+                raise self._error(tokens[0], f"{directive} requires one numeric count")
             count = self._number(tokens[1])
             if count < 0:
-                raise self._error(tokens[1], ".res count cannot be negative")
+                raise self._error(tokens[1], f"{directive} count cannot be negative")
             for _ in range(count):
                 self.mem_dict[address] = _DataItem(address, 0, tokens[1])
                 address += 1
@@ -255,6 +285,37 @@ class Assembler:
                     continue
                 current = tokens[index]
                 if current.type is TokenType.DIRECTIVE:
+                    directive = current.value.lower()
+                    if directive in {".import", ".export"}:
+                        if len(tokens) < 2 or any(
+                            token.type is not TokenType.SYMBOL for token in tokens[index + 1:]
+                        ):
+                            raise self._error(current, f"{directive} requires one or more symbols")
+                        target = (
+                            self.imported_symbols
+                            if directive == ".import"
+                            else self.exported_symbols
+                        )
+                        target.update(token.value for token in tokens[index + 1:])
+                        continue
+                    if directive == ".align":
+                        if len(tokens) != index + 2 or self._number(tokens[index + 1]) is None:
+                            raise self._error(current, ".align requires one numeric boundary")
+                        alignment = self._number(tokens[index + 1])
+                        if alignment <= 0:
+                            raise self._error(tokens[index + 1], ".align boundary must be positive")
+                        counters[section] = (
+                            (counters[section] + alignment - 1) // alignment
+                        ) * alignment
+                        continue
+                    if directive == ".org":
+                        if len(tokens) != index + 2 or self._number(tokens[index + 1]) is None:
+                            raise self._error(current, ".org requires one numeric address")
+                        address = self._number(tokens[index + 1])
+                        if address < 0:
+                            raise self._error(tokens[index + 1], ".org address cannot be negative")
+                        counters[section] = address
+                        continue
                     if section != "data":
                         raise self._error(current, "data directives are only valid in .data")
                     counters[section] = self._pass1_data(tokens[index:], counters[section])
@@ -269,8 +330,10 @@ class Assembler:
                 )
                 counters[section] += definition.size_bytes
 
-    def ir_pass(self, code: str) -> dict:
-        self.preprocess(code)
+    def ir_pass(self, code: str, *, source_name: str = "<source>") -> dict:
+        self.imported_symbols.clear()
+        self.exported_symbols.clear()
+        self.preprocess(code, source_name)
         self.tokenize("\n".join(line.text for line in self._expanded_lines))
         self.split_sections()
         self.symbol_table.clear()
@@ -278,6 +341,13 @@ class Assembler:
         self.ins_dict.clear()
         self.mem_dict.clear()
         self._pass1()
+        invalid_exports = self.exported_symbols - self.symbol_table.keys()
+        if invalid_exports:
+            raise AssemblyError(
+                f"exported symbol(s) are not defined: {', '.join(sorted(invalid_exports))}"
+            )
+        for name in self.imported_symbols & self.symbol_table.keys():
+            raise AssemblyError(f"imported symbol {name!r} is also defined locally")
         return {
             "ins": self.ins_dict,
             "data": self.mem_dict,
@@ -293,13 +363,17 @@ class Assembler:
 
     def assemble_data(self) -> bytes:
         mask = (1 << self.isa.data_width) - 1
-        output = bytearray()
+        if not self.mem_dict:
+            self.data = b""
+            return self.data
+        output = bytearray((max(self.mem_dict) + self.data_len))
         for address in sorted(self.mem_dict):
             item = self.mem_dict[address]
             value = self._resolve(item.value, item.token)
             if not 0 <= value <= mask:
                 raise self._error(item.token, f"data value {value} does not fit")
-            output.extend(value.to_bytes(self.data_len, self.isa.endianness))
+            encoded = value.to_bytes(self.data_len, self.isa.endianness)
+            output[address:address + self.data_len] = encoded
         self.data = bytes(output)
         return self.data
 
@@ -350,14 +424,16 @@ class Assembler:
             raise self._error(item.token, str(error)) from error
         return encoded, relocations
 
-    def assemble_object(self, code: str, *, packed: bool = False) -> dict:
+    def assemble_object(
+        self, code: str, *, packed: bool = False, source_name: str = "<source>"
+    ) -> dict:
         """Return a sparse, JSON-serializable object file representation.
 
         Section records contain load addresses and only populated byte ranges,
         allowing consumers to load or link programs without allocating the
         entire address space.
         """
-        self.ir_pass(code)
+        self.ir_pass(code, source_name=source_name)
         sections = {name: [] for name in self.section_labels}
         relocations = []
         for address in sorted(self.ins_dict):
@@ -403,6 +479,8 @@ class Assembler:
             "sections": [],
             "symbols": symbols,
             "relocations": relocations,
+            "imports": sorted(self.imported_symbols),
+            "exports": sorted(self.exported_symbols),
         }
         for name, records in sections.items():
             if not records:
@@ -423,15 +501,15 @@ class Assembler:
             })
         return result
 
-    def assemble_binary_object(self, code: str) -> bytes:
+    def assemble_binary_object(self, code: str, *, source_name: str = "<source>") -> bytes:
         """Return a compact MXO binary object suitable for a linker."""
-        return pack_object(self.assemble_object(code, packed=True))
+        return pack_object(self.assemble_object(code, packed=True, source_name=source_name))
 
     def mr_pass(self) -> dict:
         return {"ins": self.assemble_ins(), "data": self.assemble_data()}
 
-    def assemble(self, code: str) -> dict:
-        self.ir_pass(code)
+    def assemble(self, code: str, *, source_name: str = "<source>") -> dict:
+        self.ir_pass(code, source_name=source_name)
         return self.mr_pass()
 
     @property

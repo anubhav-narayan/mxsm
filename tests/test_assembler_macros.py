@@ -1,8 +1,10 @@
 import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from mxsm.assembler import Assembler
-from mxsm.object_format import make_magic, unpack_header
+from mxsm.object_format import make_magic, unpack_header, unpack_object
 from mxsm.schema import ISA
 
 
@@ -71,6 +73,14 @@ class AssemblerMacroTests(unittest.TestCase):
         self.assertEqual(header["section_count"], 1)
         self.assertLess(len(result), 100)
 
+    def test_binary_object_preserves_imported_relocation_symbols(self):
+        result = Assembler("mx11su.json").assemble_binary_object(
+            ".import external\n.data\n.byte &external\n"
+        )
+        decoded = unpack_object(result)
+        self.assertEqual(decoded["imports"], ["external"])
+        self.assertEqual(decoded["relocations"][0]["symbol"], "external")
+
     def test_assemble_object_does_not_allocate_address_space(self):
         assembler = Assembler({
             "isa": "wide",
@@ -85,6 +95,23 @@ class AssemblerMacroTests(unittest.TestCase):
             result["sections"][0]["records"],
             [{"address": 0, "data": "00"}],
         )
+
+    def test_include_import_export_and_layout_directives(self):
+        with tempfile.TemporaryDirectory() as directory:
+            include_path = Path(directory) / "constants.mx11"
+            include_path.write_text(".data\n.export shared\nshared:\n.byte 7\n")
+            source_path = Path(directory) / "main.mx11"
+            source_path.write_text(
+                f'.include "{include_path.name}"\n.import external\n.data\n.align 4\n.byte &external\n.space 1\n'
+            )
+            result = Assembler("mx11su.json").assemble_object(
+                source_path.read_text(), packed=True, source_name=str(source_path)
+            )
+
+        self.assertEqual(result["exports"], ["shared"])
+        self.assertEqual(result["imports"], ["external"])
+        self.assertEqual(result["sections"][0]["address"], 0)
+        self.assertEqual(result["sections"][0]["data"], "070000000000")
 
 
 if __name__ == "__main__":

@@ -27,8 +27,8 @@ loop:
 .nmi
 ; NMI Handler
     CLR D              ; Clear D to point at main
-    BZ D               ; Loop to address in D &main
+    BRZ                ; Loop to address in D &main
 .irq
 ; Interrupt Service Routine
     CLR D              ; Clear D to point at main
-    BZ D               ; Loop to address in D &main
+    BRZ                ; Loop to address in D &main

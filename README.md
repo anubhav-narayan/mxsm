@@ -6,11 +6,14 @@ MX Cross Assembler is a command-line tool for assembling machine code for the MX
 
 - **Source Code Parsing**: Reads and tokenizes the MX11 assembly source code(or any other, if you have the correct `prod.json.tab`).
 - **Assembly Macros**: Reuse parameterized instruction sequences with local labels. See [docs/macros.md](docs/macros.md).
+- **Assembler Reference**: Source layout, directives, symbols, includes, and output formats are documented in [docs/assembler.md](docs/assembler.md).
 - **Instruction and Data Segmentation**: Separates `.data` and `.ins` directives into respective memory segments.
 - **Code Segmenetation**: Separates the code into `.ins` and `.nmi`, `.irq` sections for interrupt service routines.
 - **Symbol Resolution**: Handles labels and symbolic addresses.
 - **Binary Generation**: Outputs binary files for both data and instruction segments.
 - **Object Generation**: Outputs compact binary MXO files with sections, symbols, and relocations, without allocating the full address space.
+- **Static Linking**: Combines JSON or MXO objects and emits a linked JSON map or MXE executable image.
+- **Binary Formats**: MXO and MXE layouts are documented in [docs/object-formats.md](docs/object-formats.md).
 
 ## Requirements
 
@@ -42,30 +45,70 @@ MX Cross Assembler is a command-line tool for assembling machine code for the MX
 
 ## Usage
 
+### Static linker
+
+Link assembled object files into a sparse linked map:
+
+```shell
+mxsm link main.mxp library.mxp -o linked.mxp
+```
+
+Emit an executable MXE image instead:
+
+```shell
+mxsm link main.mxo library.mxo --format executable --entry main -o program.mxe
+```
+
+The dedicated `mxsm-link` command is also available as an alias.
+
+The executable contains the linked section payloads, load addresses, ISA
+width metadata, and entry-point address. Absolute relocations are resolved
+during linking; unresolved symbols or incompatible object metadata are errors.
+
+### Assembler directives
+
+The assembler supports these source directives:
+
+```asm
+.include "common.mx11"   ; inline another source file (relative to this file)
+.import console_write    ; declare a symbol supplied by another object
+.export kernel_main      ; publish a symbol for other objects
+.byte 0x20, "OK"         ; emit data bytes
+.word 0x42               ; emit one ISA data word
+.res 16                  ; reserve zero-filled data
+.space 16                ; alias for .res
+.align 16                ; advance to the next alignment boundary
+.org 0x80                ; set the current section address
+```
+
+`.import` declarations are retained in JSON objects and unresolved imported
+symbols are resolved by the linker through relocations. `.export` declarations
+are retained in both JSON and MXO objects.
+
 ### Command-Line Interface
 
 ```shell
 $ mxsm --help
-Usage: mxsm [OPTIONS] [PROD_FILE] INPUT_FILE
+Usage: mxsm [OPTIONS] COMMAND [ARGS]...
 
-  MXSM - MX Cross Assembler
-
-  2-Pass Cross Architecture Assembler for MX Architecture
-
-  INPUT_FILE: Path to the MX assembly file.
-
-  PROD_FILE: Production table file in JSON. [default: ./prod.tab.json]
+  Assemble, disassemble, and statically link MX/11 programs.
 
 Options:
-  -o, --output PATH  Directory to save the assembled binary files.  [default:
-                     ./build]
-  --format [raw|object|packed]  Assembler output format.  [default: raw]
-  --debug            Print debug information after assembly.
   --help             Show this message and exit.
 $
 ```
 
-Use `mxsm --format object` to write the binary `program.mxo` object file. The
+Examples:
+
+```shell
+mxsm assemble source.mx11 --isa mx11su.json --format mxo -o build/source.mxo
+mxsm assemble source.mx11 --isa mx11su.json --format mxp -o build/source.mxp
+mxsm assemble source.mx11 --isa mx11su.json --format raw -o build/
+mxsm disassemble build/ins.bin --isa mx11su.json -o build/ins.mx11
+mxsm extract program.mxe -o build/raw
+```
+
+Use `--format mxo` to write the binary `program.mxo` object file. The
 file starts with an 8-byte MXSM signature:
 
 ```text
