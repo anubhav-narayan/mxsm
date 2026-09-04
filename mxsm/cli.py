@@ -7,10 +7,11 @@ from .disassembler import Disassembler
 @click.command('mxsm')
 @click.option('-d', '--disassemble', is_flag=True, default=False, help="Run the Disassembler instead of assembler")
 @click.option('-o', '--output', type=click.Path(exists=True, dir_okay=True, resolve_path=True), help="Directory to save the assembled binary files.", default="./build", show_default=True)
+@click.option('--format', 'output_format', type=click.Choice(['raw', 'object', 'packed']), default='raw', show_default=True, help="Assembler output format.")
 @click.option('--debug', is_flag=True, default=False, help="Print debug information after assembly.")
 @click.argument('input-file', type=click.Path(exists=True, file_okay=True, resolve_path=True), required=True)
-@click.argument('prod-file', type=click.Path(exists=True, file_okay=True, resolve_path=True), default="./prod.tab.json")
-def main(input_file, prod_file, output, debug, disassemble):
+@click.argument('isa-file', type=click.Path(exists=True, file_okay=True, resolve_path=True), default="./isa.json")
+def main(input_file, isa_file, output, output_format, debug, disassemble):
     """
     MXSM - MX Cross Assembler/Disassembler
 
@@ -18,7 +19,7 @@ def main(input_file, prod_file, output, debug, disassemble):
     
     INPUT_FILE: Path to the MX assembly file.
     
-    PROD_FILE: Production table file in JSON. [default: ./prod.tab.json]
+    ISA_FILE: ISA definition file in JSON. [default: ./isa.json]
     """
     try:
         # Read the code
@@ -30,11 +31,11 @@ def main(input_file, prod_file, output, debug, disassemble):
                 code = f.read()
 
         # Read the production mapping
-        with open(prod_file, 'r') as f:
-            prod = f.read()
+        with open(isa_file, 'r') as f:
+            isa = f.read()
 
         if disassemble:
-            dsm = Disassembler(prod)
+            dsm = Disassembler(isa)
             dsm.disassemble(code)
 
             with open(os.path.join(f"{os.path.realpath(output)}", 'ins_dec.mx11'), 'w') as f:
@@ -43,14 +44,25 @@ def main(input_file, prod_file, output, debug, disassemble):
             if debug:
                 click.echo(dsm.dec)
         else:
-            asm = Assembler(prod)
-            asm.assemble(code)
+            asm = Assembler(isa)
+            if output_format == 'object':
+                object_file = asm.assemble_binary_object(code)
+                with open(os.path.join(f"{os.path.realpath(output)}", 'program.mxo'), 'wb') as f:
+                    f.write(object_file)
+            elif output_format == 'packed':
+                import json
+                packed_object_file = asm.assemble_object(code, packed=True)
+                packed_object_file = json.dumps(packed_object_file, indent=2)
+                with open(os.path.join(f"{os.path.realpath(output)}", 'program.mxp'), 'w') as f:
+                    f.write(packed_object_file)
+            else:
+                asm.assemble(code)
 
-            with open(os.path.join(f"{os.path.realpath(output)}", 'ins.bin'), 'wb') as f:
-                f.write(asm.ins)
+                with open(os.path.join(f"{os.path.realpath(output)}", 'ins.bin'), 'wb') as f:
+                    f.write(asm.ins)
 
-            with open(os.path.join(f"{os.path.realpath(output)}", 'data.bin'), 'wb') as f:
-                f.write(asm.data)
+                with open(os.path.join(f"{os.path.realpath(output)}", 'data.bin'), 'wb') as f:
+                    f.write(asm.data)
 
             if debug:
                 click.echo(pprint.pformat(asm.debug_info))

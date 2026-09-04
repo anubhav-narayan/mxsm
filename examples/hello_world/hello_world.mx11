@@ -13,39 +13,40 @@
 
 .ins
 ; Instruction Segment of the Programme
-; This programme uses Y as a counter
 main:   NOP                 ; Stall 1 machine cycle
         LDI 0x2             ; Load 0x02 in A
-        ADD D, A            ; Increment D to point at destination address
-        LD X                ; Load the address to X
-        INCR D              ; Increment D to point at string length
-        LD Y                ; Load the length to Y
-        INCR D              ; Move to the next charater
-        SHM SD              ; Prepare for _loop
+        MOV D, A            ; Point D to Destination Adderess 
+        LD                  ; Load Destination Address to MBR
+        MOV SY, MBR         ; Store Desitnation Address in SY
+        INCR D              ; Point D to Length
+        LD                  ; Load Length to MBR
+        MOV Y, MBR          ; Store Length to Y
+        INCR D              ; Point D to Soure Address
+        MOV SX, D           ; Store Source Address to SX
+        CLR X               ; Clear X as Counter
+        LDI 0x01            ; Load 0x02 to A
+        MOV SD, A           ; Point SD to &loop
 
-loop:   SHM D               ; Get source address
-        LD A                ; Load character to A
-        INCR D              ; Move to next source address
-        SHM SD              ; Shadow Move D
-        MOV D, X            ; Get destination address
-        ST A                ; Store A at destination
-        INCR D              ; Move to next destination address
-        MOV X, D            ; Move destination address to X
-        CLR D               ; Clear D
-        INCR D              ; Get address to _loop
-        LD A                ; Load address of _loop to A
-        MOV D, A            ; Move address of _loop to D 
-        DECR Y              ; Decrement Length
-        JNZ                 ; Goto _loop if not 0
+loop:   MOV D, SX           ; Source Pointer to D
+        LD                  ; Load the element to MBR
+        INCR D              ; Next Pointer
+        MOV SX, D           ; Store D to SX
+        MOV D, SY           ; Point D to Destination Address
+        ST                  ; Store MBR to [D]
+        INCR D              ; Next Pointer
+        MOV SY, D           ; Store D to SY
+        MOV D, SD           ; Point D to loop
+        DECR Y              ; Decrement counter
+        BNZ D               ; Goto Loop if Y != 0
         
-        HALT                ; Halt at the end
+        HALT
 
 .nmi
 ; NMI Handler
         CLR D              ; Clear D to point at main
-        JNC                ; Loop to address in D &main
+        BRZ                ; Loop to address in D &main
 
 .irq
 ; Interrupt Service Routine
         CLR D              ; Clear D to point at main
-        JNC                ; Loop to address in D &main
+        BRZ                ; Loop to address in D &main

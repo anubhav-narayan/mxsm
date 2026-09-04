@@ -12,6 +12,7 @@ from .line_assembler import _try_alias
 from .preprocessor import ExpandedLine, MacroProcessor
 from .schema import ISA, InstructionDef, OperandDef
 from .tokenizer import Token, TokenType, Tokenizer
+from .object_format import pack_object
 
 
 class AssemblyError(SyntaxError):
@@ -20,6 +21,7 @@ class AssemblyError(SyntaxError):
 
 @dataclass
 class _InstructionItem:
+    section: str
     address: int
     definition: InstructionDef
     values: Dict[str, int | str]
@@ -65,6 +67,7 @@ class Assembler:
             name: {} for name in self.section_labels
         }
         self.symbol_table: Dict[str, int] = {}
+        self.symbol_sections: Dict[str, str] = {}
         self.ins_dict: Dict[int, _InstructionItem] = {}
         self.mem_dict: Dict[int, _DataItem] = {}
         self.ins = b""
@@ -192,10 +195,11 @@ class Assembler:
             raise self._error(source_token, f"ambiguous instruction form {mnemonic}")
         return matches[0]
 
-    def _define_label(self, token: Token, address: int) -> None:
+    def _define_label(self, token: Token, section: str, address: int) -> None:
         if token.value in self.symbol_table:
             raise self._error(token, f"duplicate label {token.value!r}")
         self.symbol_table[token.value] = address
+        self.symbol_sections[token.value] = section
 
     def _pass1_data(self, tokens: List[Token], address: int) -> int:
         directive = tokens[0].value.lower()
@@ -245,7 +249,7 @@ class Assembler:
                 tokens = self.sections[section][line_number]
                 index = 0
                 if tokens and tokens[0].type is TokenType.LABEL:
-                    self._define_label(tokens[0], counters[section])
+                    self._define_label(tokens[0], section, counters[section])
                     index = 1
                 if index == len(tokens):
                     continue
@@ -261,7 +265,7 @@ class Assembler:
                     current.value.upper(), tokens[index + 1:], current
                 )
                 self.ins_dict[counters[section]] = _InstructionItem(
-                    counters[section], definition, values, current
+                    section, counters[section], definition, values, current
                 )
                 counters[section] += definition.size_bytes
 
@@ -270,6 +274,7 @@ class Assembler:
         self.tokenize("\n".join(line.text for line in self._expanded_lines))
         self.split_sections()
         self.symbol_table.clear()
+        self.symbol_sections.clear()
         self.ins_dict.clear()
         self.mem_dict.clear()
         self._pass1()
@@ -315,6 +320,112 @@ class Assembler:
             image[offset:offset + len(encoded)] = encoded
         self.ins = bytes(image)
         return self.ins
+
+    @staticmethod
+    def _append_record(records: list[dict], address: int, encoded: bytes) -> None:
+        if records and records[-1]["address"] + len(bytes.fromhex(records[-1]["data"])) == address:
+            records[-1]["data"] += encoded.hex()
+        else:
+            records.append({"address": address, "data": encoded.hex()})
+
+    def _encode_object_instruction(self, item: _InstructionItem) -> tuple[bytes, list[dict]]:
+        values = {}
+        relocations = []
+        for name, value in item.values.items():
+            if isinstance(value, str):
+                values[name] = 0
+                relocations.append({
+                    "section": item.section,
+                    "offset": item.address,
+                    "symbol": value,
+                    "field": name,
+                    "type": "absolute",
+                    "width": item.definition.pattern.field_widths[name],
+                })
+            else:
+                values[name] = value
+        try:
+            encoded = item.definition.encode(values, endianness=self.isa.endianness)
+        except EncodingError as error:
+            raise self._error(item.token, str(error)) from error
+        return encoded, relocations
+
+    def assemble_object(self, code: str, *, packed: bool = False) -> dict:
+        """Return a sparse, JSON-serializable object file representation.
+
+        Section records contain load addresses and only populated byte ranges,
+        allowing consumers to load or link programs without allocating the
+        entire address space.
+        """
+        self.ir_pass(code)
+        sections = {name: [] for name in self.section_labels}
+        relocations = []
+        for address in sorted(self.ins_dict):
+            item = self.ins_dict[address]
+            encoded, item_relocations = self._encode_object_instruction(item)
+            relocations.extend(item_relocations)
+            self._append_record(sections[item.section], address, encoded)
+
+        mask = (1 << self.isa.data_width) - 1
+        for address in sorted(self.mem_dict):
+            item = self.mem_dict[address]
+            if isinstance(item.value, str):
+                value = 0
+                relocations.append({
+                    "section": "data",
+                    "offset": address,
+                    "symbol": item.value,
+                    "type": "absolute",
+                    "width": self.isa.data_width,
+                })
+            else:
+                value = item.value
+            if not 0 <= value <= mask:
+                raise self._error(item.token, f"data value {value} does not fit")
+            encoded = value.to_bytes(self.data_len, self.isa.endianness)
+            self._append_record(sections["data"], address, encoded)
+
+        section_bases = dict(self.section_regions)
+        symbols = {
+            name: {
+                "section": self.symbol_sections[name],
+                "offset": address - section_bases[self.symbol_sections[name]],
+            }
+            for name, address in sorted(self.symbol_table.items())
+        }
+        result = {
+            "format": "mxsm-packed" if packed else "mxsm-object",
+            "version": 1,
+            "isa": self.isa.name,
+            "address_width": self.isa.address_width,
+            "data_width": self.isa.data_width,
+            "endianness": self.isa.endianness,
+            "sections": [],
+            "symbols": symbols,
+            "relocations": relocations,
+        }
+        for name, records in sections.items():
+            if not records:
+                continue
+            if not packed:
+                result["sections"].append({"name": name, "records": records})
+                continue
+            first = records[0]["address"]
+            payload = bytearray()
+            for record in records:
+                gap = record["address"] - (first + len(payload))
+                payload.extend(b"\0" * gap)
+                payload.extend(bytes.fromhex(record["data"]))
+            result["sections"].append({
+                "name": name,
+                "address": first,
+                "data": bytes(payload).hex(),
+            })
+        return result
+
+    def assemble_binary_object(self, code: str) -> bytes:
+        """Return a compact MXO binary object suitable for a linker."""
+        return pack_object(self.assemble_object(code, packed=True))
 
     def mr_pass(self) -> dict:
         return {"ins": self.assemble_ins(), "data": self.assemble_data()}
