@@ -157,6 +157,69 @@ class Assembler:
             return int(token.value.lstrip("&"), 0)
         return None
 
+    def _expression_to_string(self, tokens: List[Token]) -> str:
+        pieces: List[str] = []
+        for token in tokens:
+            if token.type is TokenType.OPERATOR:
+                if token.value in {"(", ")"}:
+                    pieces.append(token.value)
+                else:
+                    pieces.extend([" ", token.value, " "])
+            else:
+                if pieces and pieces[-1] not in {"", " ", "(", ")"}:
+                    pieces.append(" ")
+                pieces.append(token.value)
+        return "".join(pieces).strip()
+
+    def _evaluate_expression(self, expression: str, token: Token) -> int:
+        expr = expression.strip()
+        if not expr:
+            raise self._error(token, "empty expression")
+        expr = re.sub(r'&([A-Za-z_][A-Za-z0-9_]*)', r'\1', expr)
+        expr = re.sub(r'&(?=\d|0[xX]|0[bB]|0[oO])', "", expr)
+
+        def _eval(node):
+            if isinstance(node, ast.Constant):
+                if isinstance(node.value, int):
+                    return node.value
+                raise self._error(token, f"unsupported constant in expression {expression!r}")
+            if isinstance(node, ast.BinOp):
+                left = _eval(node.left)
+                right = _eval(node.right)
+                if isinstance(node.op, ast.Add):
+                    return left + right
+                if isinstance(node.op, ast.Sub):
+                    return left - right
+                if isinstance(node.op, ast.Mult):
+                    return left * right
+                if isinstance(node.op, ast.Div):
+                    return left // right
+                if isinstance(node.op, ast.Mod):
+                    return left % right
+                if isinstance(node.op, ast.LShift):
+                    return left << right
+                if isinstance(node.op, ast.RShift):
+                    return left >> right
+                raise self._error(token, f"unsupported operator in expression {expression!r}")
+            if isinstance(node, ast.UnaryOp):
+                value = _eval(node.operand)
+                if isinstance(node.op, ast.UAdd):
+                    return +value
+                if isinstance(node.op, ast.USub):
+                    return -value
+                raise self._error(token, f"unsupported unary operator in expression {expression!r}")
+            if isinstance(node, ast.Name):
+                if node.id in self.symbol_table:
+                    return self.symbol_table[node.id]
+                raise self._error(token, f"label {node.id!r} is not defined")
+            raise self._error(token, f"unsupported expression {expression!r}")
+
+        try:
+            parsed = ast.parse(expr, mode="eval")
+        except SyntaxError as error:
+            raise self._error(token, f"invalid expression {expression!r}") from error
+        return _eval(parsed.body)
+
     def _resolve_operand(
         self, operand: OperandDef, token: Token
     ) -> int | str | None:
@@ -205,6 +268,15 @@ class Assembler:
                 if index >= len(operands):
                     matched = False
                     break
+                if (
+                    operand.type in {"immediate", "label", "memory"}
+                    and operand_index == len(definition.operands) - 1
+                    and any(token.type is TokenType.OPERATOR for token in operands[index:])
+                ):
+                    expr = self._expression_to_string(operands[index:])
+                    values[operand.name] = expr
+                    index = len(operands)
+                    continue
                 value = self._resolve_operand(operand, operands[index])
                 if value is None:
                     matched = False
@@ -234,7 +306,17 @@ class Assembler:
         if directive in {".byte", ".word"}:
             if len(tokens) == 1:
                 raise self._error(tokens[0], f"{directive} requires at least one value")
-            for token in tokens[1:]:
+            remaining = tokens[1:]
+            while remaining:
+                if any(token.type is TokenType.OPERATOR for token in remaining):
+                    value_tokens = remaining
+                    remaining = []
+                    expr = self._expression_to_string(value_tokens)
+                    self.mem_dict[address] = _DataItem(address, expr, value_tokens[0])
+                    address += self.data_len if directive == ".word" else 1
+                    continue
+                token = remaining[0]
+                remaining = remaining[1:]
                 if token.type is TokenType.STRING:
                     if directive != ".byte":
                         raise self._error(token, ".word does not accept strings")
@@ -257,13 +339,23 @@ class Assembler:
                     )
                     self.mem_dict[address] = _DataItem(address, value, token)
                     address += self.data_len if directive == ".word" else 1
+                elif token.type is TokenType.SYMBOL:
+                    self.mem_dict[address] = _DataItem(address, token.value, token)
+                    address += self.data_len if directive == ".word" else 1
                 else:
                     raise self._error(token, f"invalid {directive} value")
             return address
         if directive in {".res", ".space"}:
             if len(tokens) != 2 or self._number(tokens[1]) is None:
-                raise self._error(tokens[0], f"{directive} requires one numeric count")
-            count = self._number(tokens[1])
+                if len(tokens) == 2 and any(token.type is TokenType.OPERATOR for token in tokens[1:]):
+                    expr = self._expression_to_string(tokens[1:])
+                    count = expr
+                else:
+                    raise self._error(tokens[0], f"{directive} requires one numeric count")
+            else:
+                count = self._number(tokens[1])
+            if isinstance(count, str):
+                count = self._evaluate_expression(count, tokens[1])
             if count < 0:
                 raise self._error(tokens[1], f"{directive} count cannot be negative")
             for _ in range(count):
@@ -354,12 +446,20 @@ class Assembler:
             "symbol": self.symbol_table,
         }
 
+    @staticmethod
+    def _is_expression(value: str) -> bool:
+        return any(ch in value for ch in "+-*/()<>")
+
     def _resolve(self, value: int | str, token: Token) -> int:
         if isinstance(value, int):
             return value
-        if value not in self.symbol_table:
+        if isinstance(value, str):
+            if self._is_expression(value):
+                return self._evaluate_expression(value, token)
+            if value in self.symbol_table:
+                return self.symbol_table[value]
             raise self._error(token, f"label {value!r} is not defined")
-        return self.symbol_table[value]
+        raise self._error(token, f"unsupported value {value!r}")
 
     def assemble_data(self) -> bytes:
         mask = (1 << self.isa.data_width) - 1
@@ -407,15 +507,18 @@ class Assembler:
         relocations = []
         for name, value in item.values.items():
             if isinstance(value, str):
-                values[name] = 0
-                relocations.append({
-                    "section": item.section,
-                    "offset": item.address,
-                    "symbol": value,
-                    "field": name,
-                    "type": "absolute",
-                    "width": item.definition.pattern.field_widths[name],
-                })
+                if self._is_expression(value):
+                    values[name] = self._resolve(value, item.token)
+                else:
+                    values[name] = 0
+                    relocations.append({
+                        "section": item.section,
+                        "offset": item.address,
+                        "symbol": value,
+                        "field": name,
+                        "type": "absolute",
+                        "width": item.definition.pattern.field_widths[name],
+                    })
             else:
                 values[name] = value
         try:
@@ -446,14 +549,17 @@ class Assembler:
         for address in sorted(self.mem_dict):
             item = self.mem_dict[address]
             if isinstance(item.value, str):
-                value = 0
-                relocations.append({
-                    "section": "data",
-                    "offset": address,
-                    "symbol": item.value,
-                    "type": "absolute",
-                    "width": self.isa.data_width,
-                })
+                if self._is_expression(item.value):
+                    value = self._resolve(item.value, item.token)
+                else:
+                    value = 0
+                    relocations.append({
+                        "section": "data",
+                        "offset": address,
+                        "symbol": item.value,
+                        "type": "absolute",
+                        "width": self.isa.data_width,
+                    })
             else:
                 value = item.value
             if not 0 <= value <= mask:

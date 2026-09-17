@@ -96,6 +96,16 @@ class AssemblerMacroTests(unittest.TestCase):
             [{"address": 0, "data": "00"}],
         )
 
+    def test_inline_math_in_data_and_label_offsets(self):
+        assembler = Assembler("mx11su.json")
+
+        result = assembler.assemble_object(
+            ".data\nstart:\n.byte 2 + 3\n.byte &start + 1\n.byte 1 << 2\n.byte 8 >> 1\n"
+        )
+
+        self.assertEqual(result["sections"][0]["records"][0]["address"], 0)
+        self.assertEqual(result["sections"][0]["records"][0]["data"], "05010404")
+
     def test_include_import_export_and_layout_directives(self):
         with tempfile.TemporaryDirectory() as directory:
             include_path = Path(directory) / "constants.mx11"

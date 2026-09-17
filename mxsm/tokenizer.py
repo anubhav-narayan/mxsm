@@ -10,6 +10,7 @@ class TokenType(Enum):
     DIRECTIVE = auto()
     ADDRESS_LABEL = auto()
     ADDRESS_NUMBER = auto()
+    OPERATOR = auto()
     COMMENT = auto()
     WHITESPACE = auto()
     SYMBOL = auto()
@@ -40,6 +41,7 @@ class Tokenizer:
             (TokenType.DIRECTIVE, r'\.[A-Za-z_][A-Za-z0-9_]*\b'),
             (TokenType.ADDRESS_LABEL, r'&[A-Za-z_][A-Za-z0-9_]*\b'),
             (TokenType.ADDRESS_NUMBER, r'&(?:0[xX][0-9a-fA-F]+|0[bB][01]+|0[oO]?[0-7]+|\d+)\b'),
+            (TokenType.OPERATOR, r'(?:<<|>>|[+\-*/()])'),
             (TokenType.STRING, r'"([^"\\]|\\.)*"'),
             (TokenType.COMMENT, r';.*'),
             (TokenType.WHITESPACE, r'[ \t\n]+'),
