@@ -153,7 +153,16 @@ def _resolve_spec(spec: dict, path: Optional[Path] = None, stack: Tuple[Path, ..
 class ISA:
     """An ISA spec with list-based public names and form lookup methods."""
 
-    def __init__(self, spec: dict, forms: Dict[str, List[InstructionDef]], register_codes: Dict[str, int]):
+    def __init__(
+        self,
+        spec: dict,
+        forms: Dict[str, List[InstructionDef]],
+        register_codes: Dict[str, int],
+        control_instructions: Optional[List[InstructionDef]] = None,
+        domain_instructions: Optional[Dict[int, List[InstructionDef]]] = None,
+        domain_names: Optional[Dict[int, str]] = None,
+        control_set_name: Optional[str] = None,
+    ):
         self.spec = spec
         self.name = spec["isa"]
         self.schema_version = spec.get("schema_version", 1)
@@ -163,6 +172,10 @@ class ISA:
         self.endianness = spec.get("endianness", "big")
         self._forms = forms
         self._register_codes = register_codes
+        self.control_instructions = control_instructions or []
+        self.domain_instructions = domain_instructions or {}
+        self.domain_names = domain_names or {}
+        self.control_set_name = control_set_name
 
     @property
     def instructions(self) -> List[str]:
@@ -184,9 +197,60 @@ class ISA:
         if not isinstance(spec, dict):
             raise ISAError(f"ISA definition must be an object, got {type(spec).__name__}")
         try:
-            name, raw_instructions = spec["isa"], spec["instructions"]
+            name = spec["isa"]
         except KeyError as error:
             raise ISAError(f"ISA definition missing required key: {error}") from error
+        has_structured_instructions = "control_set" in spec or "domains" in spec
+        raw_instructions = spec.get("instructions", [])
+        if not isinstance(raw_instructions, list):
+            raise ISAError("instructions must be an array")
+        if not has_structured_instructions and "instructions" not in spec:
+            raise ISAError("ISA definition missing required key: 'instructions'")
+        if has_structured_instructions and raw_instructions:
+            raise ISAError("instructions cannot be combined with control_set or domains")
+
+        instruction_groups = []
+        control_name = None
+        if has_structured_instructions:
+            control_set = spec.get("control_set", {"name": "Control/System", "instructions": []})
+            if not isinstance(control_set, dict):
+                raise ISAError("control_set must be an object")
+            control_name = control_set.get("name")
+            if not isinstance(control_name, str) or not control_name.strip():
+                raise ISAError("control_set.name must be a non-empty string")
+            control_raw = control_set.get("instructions", [])
+            if not isinstance(control_raw, list):
+                raise ISAError("control_set.instructions must be an array")
+            instruction_groups.append(("control", None, control_raw))
+
+            raw_domains = spec.get("domains", [])
+            if not isinstance(raw_domains, list):
+                raise ISAError("domains must be an array")
+            seen_dar_values = set()
+            for domain_index, domain in enumerate(raw_domains):
+                if not isinstance(domain, dict):
+                    raise ISAError(f"domain {domain_index} must be an object")
+                dar_value = domain.get("dar")
+                domain_name = domain.get("name")
+                domain_raw = domain.get("instructions", [])
+                if not isinstance(dar_value, int) or isinstance(dar_value, bool) or dar_value < 0:
+                    raise ISAError(f"domain {domain_index}.dar must be a non-negative integer")
+                if dar_value in seen_dar_values:
+                    raise ISAError(f"duplicate DAR domain value: {dar_value}")
+                if not isinstance(domain_name, str) or not domain_name.strip():
+                    raise ISAError(f"domain {domain_index}.name must be a non-empty string")
+                if not isinstance(domain_raw, list):
+                    raise ISAError(f"domain {domain_index}.instructions must be an array")
+                seen_dar_values.add(dar_value)
+                instruction_groups.append(("domain", dar_value, domain_raw))
+        else:
+            instruction_groups.append(("legacy", None, raw_instructions))
+
+        scoped_instructions = [
+            (raw, scope, dar_value)
+            for scope, dar_value, group in instruction_groups
+            for raw in group
+        ]
         version = spec.get("schema_version", 1)
         if not isinstance(name, str) or not name.strip():
             raise ISAError("isa must be a non-empty string")
@@ -199,8 +263,6 @@ class ISA:
         endianness = spec.get("endianness", "big")
         if endianness not in ("big", "little"):
             raise ISAError("endianness must be 'big' or 'little'")
-        if not isinstance(raw_instructions, list):
-            raise ISAError("instructions must be an array")
         raw_registers = spec.get("registers", {})
         if not isinstance(raw_registers, dict):
             raise ISAError("registers must be an object mapping names to integer codes")
@@ -214,8 +276,18 @@ class ISA:
                 raise ISAError(f"duplicate register code: {code}")
             register_codes[register] = code
         forms: Dict[str, List[InstructionDef]] = {}
+        control_instructions: List[InstructionDef] = []
+        domain_instructions: Dict[int, List[InstructionDef]] = {
+            dar_value: []
+            for scope, dar_value, _ in instruction_groups
+            if scope == "domain"
+        }
+        domain_names = {
+            domain["dar"]: domain["name"]
+            for domain in spec.get("domains", [])
+        } if has_structured_instructions else {}
         seen = set()
-        for index, raw in enumerate(raw_instructions):
+        for index, (raw, scope, dar_value) in enumerate(scoped_instructions):
             if not isinstance(raw, dict):
                 raise ISAError(f"instruction {index} must be an object")
             mnemonic, encoding = raw.get("mnemonic"), raw.get("encoding")
@@ -270,12 +342,38 @@ class ISA:
                 mnemonic, operands, encoding, raw.get("meta", {}), aliases,
                 description, operation,
             )
-            signature = (mnemonic, encoding)
+            signature = (scope, dar_value, mnemonic, encoding)
             if signature in seen:
                 raise ISAError(f"duplicate instruction definition: {mnemonic} {encoding!r}")
             seen.add(signature)
             forms.setdefault(mnemonic.upper(), []).append(form)
-        return cls(spec, forms, register_codes)
+            if scope == "control":
+                control_instructions.append(form)
+            elif scope == "domain":
+                domain_instructions[dar_value].append(form)
+
+        for control_instruction in control_instructions:
+            control_mask, control_value = control_instruction.pattern.mask_and_value()
+            for dar_value, domain_forms in domain_instructions.items():
+                for domain_instruction in domain_forms:
+                    if control_instruction.pattern.width_bits != domain_instruction.pattern.width_bits:
+                        continue
+                    domain_mask, domain_value = domain_instruction.pattern.mask_and_value()
+                    if not ((control_value ^ domain_value) & control_mask & domain_mask):
+                        raise ISAError(
+                            f"domain DAR {dar_value} instruction {domain_instruction.mnemonic} "
+                            f"overlaps Control/System instruction {control_instruction.mnemonic}"
+                        )
+
+        return cls(
+            spec,
+            forms,
+            register_codes,
+            control_instructions,
+            domain_instructions,
+            domain_names,
+            control_name,
+        )
 
     @classmethod
     def from_json(cls, source) -> "ISA":

@@ -10,7 +10,9 @@ and encoding. Assembly matches the source operands against those forms.
 | Field | Required | Meaning |
 | --- | --- | --- |
 | `isa` | Yes | Non-empty name for the composed ISA. |
-| `instructions` | Yes | Array of instruction-form objects. |
+| `instructions` | Conditional | Legacy flat array of instruction forms. Use this or the structured `control_set`/`domains` form. |
+| `control_set` | Conditional | Named object containing shared Control/System instruction forms. |
+| `domains` | Conditional | Array of non-control instruction sets, each tagged with a DAR value. |
 | `schema_version` | No | Schema version; currently only `1` is supported. Defaults to `1`. |
 | `word_size` | No | Default word width in bits. Defaults to `8`. |
 | `address_width` | No | Address width in bits. Defaults to `word_size`. |
@@ -45,6 +47,51 @@ instruction's encoded size.
 Register names and instruction mnemonics use letters or `_` first, followed by
 letters, digits, or `_`. Register codes must be unique within the composed
 specification. Mnemonic lookup is case-insensitive.
+
+### Control/System Set and DAR Domains
+
+An ISA may separate shared control instructions from instructions selected by
+the DAR value. In this form, `control_set` is an object with a descriptive
+`name` and an `instructions` array. Each entry in `domains` has a unique
+non-negative `dar`, a descriptive `name`, and its own `instructions` array.
+Do not also provide the legacy top-level `instructions` array.
+
+Control/System instructions are available in every domain and are protected:
+the loader rejects a domain encoding that can match a Control/System encoding
+of the same bit width. Different DAR domains may reuse encodings because DAR
+selects which domain is active. Instruction `operation` strings may document
+effects such as DAR transitions; they remain informational and are not
+executed by the assembler or disassembler.
+
+```json
+{
+  "isa": "MX/11-70",
+  "control_set": {
+    "name": "Control/System",
+    "instructions": [
+      {"mnemonic": "DSEL", "encoding": "11110000", "operation": "DAR <- A"},
+      {"mnemonic": "DRET", "encoding": "11110011", "operation": "DAR <- 0"}
+    ]
+  },
+  "domains": [
+    {
+      "dar": 0,
+      "name": "Base",
+      "instructions": [{"mnemonic": "NOP", "encoding": "00000000"}]
+    },
+    {
+      "dar": 1,
+      "name": "MXTTY/11",
+      "instructions": [{"mnemonic": "TTYOUT", "encoding": "00000001"}]
+    }
+  ]
+}
+```
+
+The loaded `ISA` exposes `control_set_name`, `control_instructions`,
+`domain_names`, and `domain_instructions`. `all_instructions()` remains a
+flattened view for compatibility with existing callers. The older flat
+`instructions` form remains supported for ISAs without DAR domains.
 
 ## Instruction Forms
 

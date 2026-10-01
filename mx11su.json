@@ -11,9 +11,33 @@
     "SA": 8, "SX": 9, "SY": 10, "SD": 11,
     "R0": 12, "R1": 13, "R2": 14, "R3": 15
   },
-  "instructions": [
+  "control_set": {
+    "name": "Control/System",
+    "instructions": [
+      {"mnemonic": "HALT", "operands": [], "encoding": "11111111"},
+      {"mnemonic": "DSEL", "encoding": "11110000", "operation": "DAR <- A"},
+      {"mnemonic": "DNXT", "encoding": "11110001", "operation": "DAR++"},
+      {"mnemonic": "DPRV", "encoding": "11110010", "operation": "DAR--"},
+      {"mnemonic": "DRET", "encoding": "11110011", "operation": "DAR <- 0"},
+      {"mnemonic": "CTXS", "encoding": "11110100"},
+      {"mnemonic": "CRET", "encoding": "11110101"},
+      {"mnemonic": "IRQ", "encoding": "11110110"},
+      {"mnemonic": "RTI", "encoding": "11110111"},
+      {"mnemonic": "BRZ", "encoding": "11111000"},
+      {"mnemonic": "RET", "encoding": "11111001"},
+      {"mnemonic": "SFA", "encoding": "11111010"},
+      {"mnemonic": "LFA", "encoding": "11111011"},
+      {"mnemonic": "LD", "encoding": "11111100"},
+      {"mnemonic": "ST", "encoding": "11111101"},
+      {"mnemonic": "NMI", "encoding": "11111110"}
+    ]
+  },
+  "domains": [
+    {
+      "dar": 0,
+      "name": "Base",
+      "instructions": [
     {"mnemonic": "NOP",  "operands": [], "encoding": "00000000"},
-    {"mnemonic": "HALT", "operands": [], "encoding": "11111111"},
     {
       "mnemonic": "MOV",
       "operands": [
@@ -378,21 +402,8 @@
         }
       ],
       "encoding": "1110 {imm4:4}"
-    },
-    {"mnemonic": "DSEL", "encoding": "11110000"},
-    {"mnemonic": "DNXT", "encoding": "11110001"},
-    {"mnemonic": "DPRV", "encoding": "11110010"},
-    {"mnemonic": "DRET", "encoding": "11110011"},
-    {"mnemonic": "CTXS", "encoding": "11110100"},
-    {"mnemonic": "CRET", "encoding": "11110101"},
-    {"mnemonic": "IRQ", "encoding": "11110110"},
-    {"mnemonic": "RTI", "encoding": "11110111"},
-    {"mnemonic": "BRZ", "encoding": "11111000"},
-    {"mnemonic": "RET", "encoding": "11111001"},
-    {"mnemonic": "SFA", "encoding": "11111010"},
-    {"mnemonic": "LFA", "encoding": "11111011"},
-    {"mnemonic": "LD", "encoding": "11111100"},
-    {"mnemonic": "ST", "encoding": "11111101"},
-    {"mnemonic": "NMI", "encoding": "11111110"}
+    }
+      ]
+    }
   ]
 }

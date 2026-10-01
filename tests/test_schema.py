@@ -49,6 +49,33 @@ class ISASchemaTests(unittest.TestCase):
         self.assertEqual(isa.address_width, 8)
         self.assertEqual(isa.data_width, 8)
         self.assertEqual(len(isa.all_instructions()), 33)
+        self.assertEqual(isa.control_set_name, "Control/System")
+        self.assertEqual(len(isa.control_instructions), 16)
+        self.assertEqual(set(isa.domain_instructions), {0})
+        self.assertEqual(isa.domain_names[0], "Base")
+        self.assertEqual(len(isa.domain_instructions[0]), 17)
+        self.assertEqual(
+            next(instruction for instruction in isa.control_instructions if instruction.mnemonic == "DSEL").operation,
+            "DAR <- A",
+        )
+
+    def test_rejects_domain_encoding_that_overrides_control_set(self):
+        definition = {
+            "isa": "MX/11-domain-test",
+            "control_set": {
+                "name": "Control/System",
+                "instructions": [{"mnemonic": "DSEL", "encoding": "11110000"}],
+            },
+            "domains": [{
+                "dar": 0,
+                "name": "Base",
+                "instructions": [{"mnemonic": "OVERRIDE", "encoding": "1111 {value:4}",
+                                  "operands": [{"name": "value"}]}],
+            }],
+        }
+
+        with self.assertRaisesRegex(ISAError, "overlaps Control/System instruction DSEL"):
+            ISA.from_dict(definition)
 
     def test_selector_operand_may_be_absent_or_present(self):
         isa = ISA.from_json("mx11su.json")
