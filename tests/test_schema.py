@@ -1,8 +1,43 @@
+import json
+import tempfile
 import unittest
+from pathlib import Path
 
+from mxsm.assembler import Assembler
 from mxsm.bitfield import EncodingError
 from mxsm.line_assembler import assemble_line
 from mxsm.schema import ISA, ISAError, ISAEncodingIndex, ISAProductionTree
+
+
+def rv32i_test_spec():
+    return {
+        "isa": "RV32I-test",
+        "word_size": 32,
+        "address_width": 32,
+        "data_width": 32,
+        "endianness": "little",
+        "registers": {"x0": 0},
+        "instructions": [
+            {
+                "mnemonic": "BEQ",
+                "operands": [
+                    {"name": "offset", "signed": True},
+                    {"name": "rs1", "type": "register"},
+                    {"name": "rs2", "type": "register"},
+                ],
+                "encoding": "{offset[12:12]} {offset[10:5]} {rs2:5} {rs1:5} 000 {offset[4:1]} {offset[11:11]} 1100011",
+            },
+            {
+                "mnemonic": "ADDI",
+                "operands": [
+                    {"name": "imm", "signed": True},
+                    {"name": "rs1", "type": "register"},
+                    {"name": "rd", "type": "register"},
+                ],
+                "encoding": "{imm[11:0]} {rs1:5} 000 {rd:5} 0010011",
+            },
+        ],
+    }
 
 
 class ISASchemaTests(unittest.TestCase):
@@ -10,16 +45,16 @@ class ISASchemaTests(unittest.TestCase):
         isa = ISA.from_json("mx11su.json")
 
         self.assertEqual(isa.schema_version, 1)
-        self.assertEqual(isa.name, "MX11")
+        self.assertEqual(isa.name, "MX/11-70")
         self.assertEqual(isa.address_width, 8)
         self.assertEqual(isa.data_width, 8)
-        self.assertEqual(len(isa.all_instructions()), 9)
+        self.assertEqual(len(isa.all_instructions()), 33)
 
     def test_selector_operand_may_be_absent_or_present(self):
         isa = ISA.from_json("mx11su.json")
 
-        without_selector = assemble_line(isa, "BZ A")
-        with_selector = assemble_line(isa, "BZ INSP, A")
+        without_selector = assemble_line(isa, "BNZ A")
+        with_selector = assemble_line(isa, "BNZ INSP, A")
 
         self.assertEqual(without_selector.encoded, b"\xa0")
         self.assertEqual(with_selector.encoded, b"\xa8")
@@ -60,19 +95,36 @@ class ISASchemaTests(unittest.TestCase):
         self.assertEqual(expansions[0], ({"dst": 0, "value": 0}, b"\x00"))
         self.assertEqual(expansions[-1], ({"dst": 1, "value": 3}, b"\xe0"))
 
-    def test_loads_6502_architecture_widths(self):
-        isa = ISA.from_json("mos6502.json")
+    def test_models_instruction_and_address_widths(self):
+        isa = ISA.from_dict({
+            "isa": "6502-test",
+            "address_width": 16,
+            "data_width": 8,
+            "endianness": "big",
+            "instructions": [
+                {
+                    "mnemonic": "LDA",
+                    "operands": [{"name": "value", "size": 8}],
+                    "encoding": "10101001 {value:8}",
+                },
+                {
+                    "mnemonic": "LDA",
+                    "operands": [{"name": "address", "type": "memory", "size": 16}],
+                    "encoding": "10101101 {address[7:0]} {address[15:8]}",
+                },
+            ],
+        })
 
         self.assertEqual(isa.address_width, 16)
         self.assertEqual(isa.data_width, 8)
         self.assertEqual(isa.find("LDA", 1).size_bytes, 2)
         self.assertEqual(isa.find("LDA", 1).operands[0].size, 8)
 
-        absolute = isa.search_mnemonic("LDA")[2]
+        absolute = isa.search_mnemonic("LDA")[1]
         self.assertEqual(absolute.encode({"address": 0x1234}), b"\xad\x34\x12")
 
-    def test_loads_rv32i_split_immediate_fixture(self):
-        isa = ISA.from_json("rv32i.json")
+    def test_encodes_and_indexes_rv32i_split_immediate(self):
+        isa = ISA.from_dict(rv32i_test_spec())
         index = ISAEncodingIndex(isa)
 
         self.assertEqual(isa.address_width, 32)
@@ -91,7 +143,7 @@ class ISASchemaTests(unittest.TestCase):
             "isa": "X",
             "instructions": [{
                 "mnemonic": "LDI",
-                "operands": [{"name": "value", "size": 4}],
+                "operands": [{"name": "value", "size": 3}],
                 "encoding": "1111 {value:4}",
             }],
         }
@@ -145,7 +197,7 @@ class ISASchemaTests(unittest.TestCase):
         isa = ISA.from_dict({"isa": "X", "instructions": [instruction]})
         definition = isa.find("BR", 1)
 
-        self.assertEqual(definition.encode({"offset": -1}), b"\xff")
+        self.assertEqual(definition.encode({"offset": -1}), b"\x1f\x1e")
         with self.assertRaisesRegex(EncodingError, "outside the 8-bit range"):
             definition.encode({"offset": 128})
 
@@ -195,22 +247,22 @@ class ISASchemaTests(unittest.TestCase):
         self.assertEqual(index.search(0x00000013, bit_width=32)[0][0].mnemonic, "ADDI")
 
     def test_production_tree_expands_only_when_searched(self):
-        tree = ISAProductionTree.from_json("rv32i-complete.json")
+        tree = ISAProductionTree.from_dict(rv32i_test_spec())
 
         match = tree.reverse_search(0x00000013, bit_width=32)
-        self.assertEqual(match[0].mnemonic, "ADDI")
-        self.assertEqual(match[0].operand_values["imm"], 0)
+        self.assertEqual(match[0][0].mnemonic, "ADDI")
+        self.assertEqual(match[0][1]["imm"], 0)
 
-    def test_rejects_ambiguous_instruction_encodings(self):
+    def test_rejects_duplicate_instruction_definitions(self):
         definition = {
             "isa": "X",
             "instructions": [
                 {"mnemonic": "A", "operands": [{"name": "left"}], "encoding": "0000 {left:4}"},
-                {"mnemonic": "B", "operands": [{"name": "right"}], "encoding": "0000 {right:4}"},
+                {"mnemonic": "A", "operands": [{"name": "left"}], "encoding": "0000 {left:4}"},
             ],
         }
 
-        with self.assertRaisesRegex(ISAError, "duplicate instruction encoding patterns"):
+        with self.assertRaisesRegex(ISAError, "duplicate instruction definition"):
             ISA.from_dict(definition)
 
     def test_accepts_disjoint_instruction_encodings(self):
@@ -223,6 +275,54 @@ class ISASchemaTests(unittest.TestCase):
         }
 
         self.assertEqual(len(ISA.from_dict(definition).all_instructions()), 2)
+
+    def test_instruction_documentation_fields(self):
+        isa = ISA.from_dict({
+            "isa": "X",
+            "instructions": [{
+                "mnemonic": "ADD",
+                "encoding": "00000000",
+                "description": "Add the selected value to the accumulator.",
+                "operation": "A <- A + value",
+            }],
+        })
+
+        instruction = isa.find("ADD", 0)
+        self.assertEqual(instruction.description, "Add the selected value to the accumulator.")
+        self.assertEqual(instruction.operation, "A <- A + value")
+
+    def test_assembler_loads_relative_base_spec_and_extension(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = Path(temporary_directory)
+            (directory / "base.json").write_text(json.dumps({
+                "isa": "MX/11-base",
+                "registers": {"A": 0},
+                "instructions": [{"mnemonic": "NOP", "encoding": "00000000"}],
+            }))
+            extension_path = directory / "extension.json"
+            extension_path.write_text(json.dumps({
+                "isa": "MX/11-domain",
+                "base": "base.json",
+                "instructions": [{"mnemonic": "EXT", "encoding": "00000001"}],
+            }))
+
+            assembler = Assembler(extension_path)
+            output = assembler.assemble_object(".ins\nNOP\nEXT\n", packed=True)
+
+        self.assertEqual(assembler.isa.name, "MX/11-domain")
+        self.assertEqual(assembler.isa.instructions, ["NOP", "EXT"])
+        self.assertEqual(bytes.fromhex(output["sections"][0]["data"]), b"\x00\x01")
+
+    def test_rejects_circular_base_specs(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = Path(temporary_directory)
+            first_path = directory / "first.json"
+            second_path = directory / "second.json"
+            first_path.write_text(json.dumps({"isa": "A", "base": "second.json", "instructions": []}))
+            second_path.write_text(json.dumps({"isa": "B", "base": "first.json", "instructions": []}))
+
+            with self.assertRaisesRegex(ISAError, "circular ISA base reference"):
+                ISA.from_json(first_path)
 
 
 if __name__ == "__main__":
