@@ -17,7 +17,7 @@ MX Cross Assembler is a command-line tool for assembling machine code for the MX
 
 ## Requirements
 
-- Python 3.8+
+- Python 3.12+
 - `click` library for the command-line interface.
 - `json` library for parsing the production mapping.
 
@@ -136,6 +136,9 @@ mxsm --format packed source.mx11 mx11su.json
 ```
 
 ## MX/11 ISA spec
+
+ISA JSON instruction documentation fields and shared base specs are described
+in [docs/isa-specs.md](docs/isa-specs.md).
 
 ```json
 {

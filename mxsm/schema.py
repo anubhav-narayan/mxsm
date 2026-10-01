@@ -5,6 +5,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from itertools import product
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from .bitfield import BitPattern, EncodingError
@@ -34,6 +35,8 @@ class InstructionDef:
     encoding: str
     meta: Dict = field(default_factory=dict)
     aliases: List[Dict[str, object]] = field(default_factory=list)
+    description: Optional[str] = None
+    operation: Optional[str] = None
     pattern: BitPattern = field(init=False, repr=False)
 
     def __post_init__(self):
@@ -81,6 +84,72 @@ class InstructionDef:
             raise EncodingError(f"{self.mnemonic}: {error}") from error
 
 
+def _load_spec(source, stack: Tuple[Path, ...] = ()) -> dict:
+    path = None
+    if isinstance(source, dict):
+        spec = source
+    elif hasattr(source, "read"):
+        spec = json.load(source)
+        source_name = getattr(source, "name", None)
+        if source_name:
+            path = Path(source_name).resolve()
+    elif isinstance(source, Path):
+        path = source.resolve()
+        spec = json.loads(path.read_text())
+    elif isinstance(source, str):
+        if source.lstrip().startswith("{"):
+            spec = json.loads(source)
+        else:
+            path = Path(source).resolve()
+            spec = json.loads(path.read_text())
+    else:
+        raise TypeError("ISA definition must be a mapping, JSON string, path, or readable file")
+
+    if path is not None:
+        if path in stack:
+            cycle = " -> ".join(str(item) for item in (*stack, path))
+            raise ISAError(f"circular ISA base reference: {cycle}")
+        stack = (*stack, path)
+    return _resolve_spec(spec, path, stack)
+
+
+def _resolve_spec(spec: dict, path: Optional[Path] = None, stack: Tuple[Path, ...] = ()) -> dict:
+    if not isinstance(spec, dict):
+        raise ISAError(f"ISA definition must be an object, got {type(spec).__name__}")
+    if "base" not in spec:
+        return spec
+    base_reference = spec["base"]
+    if not isinstance(base_reference, str) or not base_reference.strip():
+        raise ISAError("base must be a non-empty relative path")
+    if path is None:
+        raise ISAError("base references require loading the ISA spec from a file")
+    base_path = Path(base_reference)
+    if base_path.is_absolute():
+        raise ISAError("base must be a relative path")
+    base = _load_spec(path.parent / base_path, stack)
+
+    base_registers = base.get("registers", {})
+    extension_registers = spec.get("registers", {})
+    base_instructions = base.get("instructions", [])
+    extension_instructions = spec.get("instructions", [])
+    if not isinstance(base_registers, dict) or not isinstance(extension_registers, dict):
+        raise ISAError("registers must be an object mapping names to integer codes")
+    if not isinstance(base_instructions, list) or not isinstance(extension_instructions, list):
+        raise ISAError("instructions must be an array")
+
+    registers = dict(base_registers)
+    for name, code in extension_registers.items():
+        if name in registers and registers[name] != code:
+            raise ISAError(f"register {name!r} conflicts with the base ISA definition")
+        registers[name] = code
+
+    merged = dict(base)
+    merged.update({key: value for key, value in spec.items() if key not in ("base", "registers", "instructions")})
+    merged["registers"] = registers
+    merged["instructions"] = base_instructions + extension_instructions
+    return merged
+
+
 class ISA:
     """An ISA spec with list-based public names and form lookup methods."""
 
@@ -111,6 +180,7 @@ class ISA:
 
     @classmethod
     def from_dict(cls, spec: dict) -> "ISA":
+        spec = _resolve_spec(spec)
         if not isinstance(spec, dict):
             raise ISAError(f"ISA definition must be an object, got {type(spec).__name__}")
         try:
@@ -190,7 +260,16 @@ class ISA:
                     raise ISAError(f"{mnemonic}: alias {alias_index} operands must be an array of strings")
                 if not isinstance(alias_values, dict) or set(alias_values) != {operand.name for operand in operands}:
                     raise ISAError(f"{mnemonic}: alias {alias_index} values must map every operand")
-            form = InstructionDef(mnemonic, operands, encoding, raw.get("meta", {}), aliases)
+            description = raw.get("description")
+            operation = raw.get("operation")
+            if description is not None and not isinstance(description, str):
+                raise ISAError(f"{mnemonic}: description must be a string")
+            if operation is not None and not isinstance(operation, str):
+                raise ISAError(f"{mnemonic}: operation must be a string")
+            form = InstructionDef(
+                mnemonic, operands, encoding, raw.get("meta", {}), aliases,
+                description, operation,
+            )
             signature = (mnemonic, encoding)
             if signature in seen:
                 raise ISAError(f"duplicate instruction definition: {mnemonic} {encoding!r}")
@@ -200,10 +279,7 @@ class ISA:
 
     @classmethod
     def from_json(cls, source) -> "ISA":
-        if hasattr(source, "read"):
-            return cls.from_dict(json.load(source))
-        with open(source) as handle:
-            return cls.from_dict(json.load(handle))
+        return cls.from_dict(_load_spec(source))
 
     def search_mnemonic(self, mnemonic: str) -> List[InstructionDef]:
         return list(self._forms.get(mnemonic.upper(), []))

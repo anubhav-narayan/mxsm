@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import json
-from pathlib import Path
 from typing import Dict, Tuple
 
 from .schema import ISA, ISAEncodingIndex, InstructionDef, OperandDef
@@ -17,8 +15,7 @@ class Disassembler:
     types as :class:`Assembler`.
     """
     def __init__(self, isa_source):
-        definition = self._load_definition(isa_source)
-        self.isa = ISA.from_dict(definition)
+        self.isa = ISA.from_json(isa_source)
         self.index = ISAEncodingIndex(self.isa)
         self.ins_len = max(
             (instruction.size_bytes for instruction in self.isa.all_instructions()),
@@ -28,22 +25,6 @@ class Disassembler:
         self.address_len = (self.isa.address_width + 7) // 8
         self.dec = ''
         self.sdec = []
-
-    @staticmethod
-    def _load_definition(source) -> dict:
-        if isinstance(source, dict):
-            return source
-        if hasattr(source, 'read'):
-            return json.load(source)
-        if isinstance(source, Path):
-            with source.open() as handle:
-                return json.load(handle)
-        if isinstance(source, str):
-            if source.lstrip().startswith('{'):
-                return json.loads(source)
-            with open(source) as handle:
-                return json.load(handle)
-        raise TypeError('ISA definition must be a mapping, JSON string, path, or readable file')
 
     def _format_operand(self, operand: OperandDef, value: int, instruction: InstructionDef) -> str:
         values = operand.values

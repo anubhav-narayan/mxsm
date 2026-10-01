@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import ast
-import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -45,8 +44,8 @@ class Assembler:
     """
 
     def __init__(self, isa_source):
-        definition = self._load_definition(isa_source)
-        self.isa = ISA.from_dict(definition)
+        self.isa = ISA.from_json(isa_source)
+        definition = self.isa.spec
         self.tokenizer = Tokenizer(self.isa.instructions, self.isa.registers)
         self.nmi_addr = definition.get("nmi_vector", 0)
         self.irq_addr = definition.get("irq_vector", 0)
@@ -76,24 +75,6 @@ class Assembler:
         self._expanded_lines: List[ExpandedLine] = []
         self.imported_symbols: set[str] = set()
         self.exported_symbols: set[str] = set()
-
-    @staticmethod
-    def _load_definition(source) -> dict:
-        if isinstance(source, dict):
-            return source
-        if hasattr(source, "read"):
-            return json.load(source)
-        if isinstance(source, Path):
-            with source.open() as handle:
-                return json.load(handle)
-        if isinstance(source, str):
-            if source.lstrip().startswith("{"):
-                return json.loads(source)
-            with open(source) as handle:
-                return json.load(handle)
-        raise TypeError(
-            "ISA definition must be a mapping, JSON string, path, or readable file"
-        )
 
     @staticmethod
     def _include_source(code: str, source_name: str, include_stack: tuple[Path, ...] = ()) -> str:
