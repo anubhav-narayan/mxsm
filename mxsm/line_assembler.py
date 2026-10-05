@@ -89,7 +89,7 @@ def _try_match(isa: ISA, ins_def: InstructionDef,
         token_value = token.value
         token_index += 1
         if op.type == "register":
-            table = op.values or isa._register_codes
+            table = op.values or isa.register_map_for(ins_def)
             name = token_value.upper()
             if name not in table:
                 return None
@@ -120,7 +120,7 @@ def describe_usage(isa: ISA, ins_def: InstructionDef) -> str:
     parts = []
     for op in ins_def.operands:
         if op.type == "register":
-            names = sorted((op.values or isa._register_codes).keys())
+            names = sorted((op.values or isa.register_map_for(ins_def)).keys())
             parts.append("{" + "|".join(names) + "}")
         elif op.type == "selector":
             names = sorted(name for name in (op.values or {}) if name)
@@ -186,7 +186,11 @@ def _try_alias(isa: ISA, ins_def: InstructionDef,
         for operand in ins_def.operands:
             value = alias["values"][operand.name]
             if isinstance(value, str) and operand.type in {"register", "selector"}:
-                table = operand.values or isa._register_codes
+                table = operand.values or (
+                    isa.register_map_for(ins_def)
+                    if operand.type == "register"
+                    else isa._register_codes
+                )
                 if value.upper() in table:
                     value = table[value.upper()]
                 elif value in table:

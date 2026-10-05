@@ -202,7 +202,7 @@ class Assembler:
         return _eval(parsed.body)
 
     def _resolve_operand(
-        self, operand: OperandDef, token: Token
+        self, operand: OperandDef, token: Token, instruction: InstructionDef
     ) -> int | str | None:
         if operand.type in {"label", "memory"} and token.type in {
             TokenType.SYMBOL,
@@ -213,7 +213,7 @@ class Assembler:
         if number is not None and operand.type in {"immediate", "label", "memory"}:
             return number
         if operand.type == "register":
-            table = operand.values or self.isa._register_codes
+            table = operand.values or self.isa.register_map_for(instruction)
             return table.get(token.value.upper())
         if operand.type == "selector":
             table = operand.values or {"": 0}
@@ -258,7 +258,7 @@ class Assembler:
                     values[operand.name] = expr
                     index = len(operands)
                     continue
-                value = self._resolve_operand(operand, operands[index])
+                value = self._resolve_operand(operand, operands[index], definition)
                 if value is None:
                     matched = False
                     break

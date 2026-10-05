@@ -1,0 +1,444 @@
+{
+  "isa": "MX/11-71",
+  "address_width": 8,
+  "data_width": 8,
+  "endianness": "big",
+  "nmi_vector": 128,
+  "irq_vector": 192,
+  "registers": {
+    "A": 0, "X": 1, "Y": 2, "D": 3,
+    "DAR": 4, "MBR": 5, "INSP": 6, "FLAGS": 7,
+    "SA": 8, "SX": 9, "SY": 10, "SD": 11,
+    "R0": 12, "R1": 13, "R2": 14, "R3": 15
+  },
+  "control_set": {
+    "name": "Control/System",
+    "instructions": [
+      {"mnemonic": "HALT", "encoding": "11111111", "description": "Halt the processor."},
+      {"mnemonic": "DSEL", "encoding": "11110000", "description": "DAR <- A"},
+      {"mnemonic": "DNXT", "encoding": "11110001", "description": "DAR++"},
+      {"mnemonic": "DPRV", "encoding": "11110010", "description": "DAR--"},
+      {"mnemonic": "DRET", "encoding": "11110011", "description": "DAR <- 0"},
+      {"mnemonic": "CTXS", "encoding": "11110100"},
+      {"mnemonic": "CRET", "encoding": "11110101"},
+      {"mnemonic": "IRQ", "encoding": "11110110"},
+      {"mnemonic": "RTI", "encoding": "11110111"},
+      {"mnemonic": "BRZ", "encoding": "11111000"},
+      {"mnemonic": "RET", "encoding": "11111001"},
+      {"mnemonic": "SFA", "encoding": "11111010"},
+      {"mnemonic": "LFA", "encoding": "11111011"},
+      {"mnemonic": "LD", "encoding": "11111100"},
+      {"mnemonic": "ST", "encoding": "11111101"},
+      {"mnemonic": "NMI", "encoding": "11111110"}
+    ]
+  },
+  "domains": [
+    {
+      "dar": 0,
+      "name": "Base",
+      "instructions": [
+    {"mnemonic": "NOP",  "operands": [], "encoding": "00000000"},
+    {
+      "mnemonic": "MOV",
+      "operands": [
+        {
+          "name": "dst",
+          "type": "register",
+          "values": {"A": 0, "X": 1, "Y": 2, "D": 3, "SA": 4, "SX": 5, "SY": 6, "SD": 7}
+        },
+        {
+          "name": "src",
+          "type": "register",
+          "values": {"A": 0, "X": 1, "Y": 2, "D": 3, "DAR": 4, "MBR": 5, "INSP": 6, "FLAGS": 7, "SA": 8, "SX": 9, "SY": 10, "SD": 11, "R0": 12, "R1": 13, "R2": 14, "R3": 15}
+        }
+      ],
+      "encoding": "0 {dst:3} {src:4}",
+      "aliases": [
+        {
+          "operands": ["MBR", "X"],
+          "values": {"dst": 1, "src": "X"}
+        },
+        {
+          "operands": ["MBR", "Y"],
+          "values": {"dst": 2, "src": "Y"}
+        },
+        {
+          "operands": ["MBR", "D"],
+          "values": {"dst": 3, "src": "D"}
+        },
+        {
+          "operands": ["MBR", "SA"],
+          "values": {"dst": 4, "src": "SA"}
+        },
+        {
+          "operands": ["MBR", "SX"],
+          "values": {"dst": 5, "src": "SX"}
+        },
+        {
+          "operands": ["MBR", "SY"],
+          "values": {"dst": 6, "src": "SY"}
+        },
+        {
+          "operands": ["MBR", "SD"],
+          "values": {"dst": 7, "src": "SD"}
+        }
+      ]
+    },
+    {
+      "mnemonic": "CLR",
+      "operands": [
+        {
+          "name": "reg",
+          "type": "register",
+          "values": {"A": 0, "X": 1, "Y": 2, "D": 3, "SA": 4, "SX": 5, "SY": 6, "SD": 7}
+        }
+      ],
+      "encoding": "10000 {reg:3}"
+    },
+    {
+      "mnemonic": "INCR",
+      "operands": [
+        {
+          "name": "reg",
+          "type": "register",
+          "values": {"A": 0, "X": 1, "Y": 2, "D": 3, "SA": 4, "SX": 5, "SY": 6, "SD": 7}
+        }
+      ],
+      "encoding": "10001 {reg:3}"
+    },
+    {
+      "mnemonic": "DECR",
+      "operands": [
+        {
+          "name": "reg",
+          "type": "register",
+          "values": {"A": 0, "X": 1, "Y": 2, "D": 3, "SA": 4, "SX": 5, "SY": 6, "SD": 7}
+        }
+      ],
+      "encoding": "10010 {reg:3}"
+    },
+    {
+      "mnemonic": "NOT",
+      "operands": [
+        {
+          "name": "reg",
+          "type": "register",
+          "values": {"A": 0, "X": 1, "Y": 2, "D": 3, "SA": 4, "SX": 5, "SY": 6, "SD": 7}
+        }
+      ],
+      "encoding": "10011 {reg:3}"
+    },
+    {
+      "mnemonic": "BNZ",
+      "operands": [
+        {
+          "name": "base",
+          "type": "selector",
+          "values": {"": 0, "INSP": 1}
+        },
+        {
+          "name": "reg",
+          "type": "register",
+          "values": {"A": 0, "X": 1, "Y": 2, "D": 3, "SA": 4, "SX": 5, "SY": 6, "SD": 7}
+        }
+      ],
+      "encoding": "1010 {base:1} {reg:3}"
+    },
+    {
+      "mnemonic": "BC",
+      "operands": [
+        {
+          "name": "base",
+          "type": "selector",
+          "values": {"": 0, "INSP": 1}
+        },
+        {
+          "name": "reg",
+          "type": "register",
+          "values": {"A": 0, "X": 1, "Y": 2, "D": 3, "SA": 4, "SX": 5, "SY": 6, "SD": 7}
+        }
+      ],
+      "encoding": "1011 {base:1} {reg:3}"
+    },
+    {
+      "mnemonic": "ADD",
+      "operands": [
+        {
+          "name": "pair",
+          "type": "selector",
+          "values": {"": 0, "X": 1, "Y": 2, "D": 3}
+        }
+      ],
+      "encoding": "110000 {pair:2}",
+      "aliases":[
+        {
+          "operands":["X", "Y"],
+          "values":{"pair":0}
+        },
+        {
+          "operands":["A", "X"],
+          "values":{"pair":1}
+        },
+        {
+          "operands":["A", "Y"],
+          "values":{"pair":2}
+        },
+        {
+          "operands":["A", "D"],
+          "values":{"pair":3}
+        }
+      ]
+    },
+    {
+      "mnemonic": "ADC",
+      "operands": [
+        {
+          "name": "pair",
+          "type": "selector",
+          "values": {"": 0, "X": 1, "Y": 2, "D": 3}
+        }
+      ],
+      "encoding": "110001 {pair:2}",
+      "aliases":[
+        {
+          "operands":["X", "Y"],
+          "values":{"pair":0}
+        },
+        {
+          "operands":["A", "X"],
+          "values":{"pair":1}
+        },
+        {
+          "operands":["A", "Y"],
+          "values":{"pair":2}
+        },
+        {
+          "operands":["A", "D"],
+          "values":{"pair":3}
+        }
+      ]
+    },
+    {
+      "mnemonic": "SUB",
+      "operands": [
+        {
+          "name": "pair",
+          "type": "selector",
+          "values": {"": 0, "X": 1, "Y": 2, "D": 3}
+        }
+      ],
+      "encoding": "110010 {pair:2}",
+      "aliases":[
+        {
+          "operands":["X", "Y"],
+          "values":{"pair":0}
+        },
+        {
+          "operands":["A", "X"],
+          "values":{"pair":1}
+        },
+        {
+          "operands":["A", "Y"],
+          "values":{"pair":2}
+        },
+        {
+          "operands":["A", "D"],
+          "values":{"pair":3}
+        }
+      ]
+    },
+    {
+      "mnemonic": "SBC",
+      "operands": [
+        {
+          "name": "pair",
+          "type": "selector",
+          "values": {"": 0, "X": 1, "Y": 2, "D": 3}
+        }
+      ],
+      "encoding": "110011 {pair:2}",
+      "aliases":[
+        {
+          "operands":["X", "Y"],
+          "values":{"pair":0}
+        },
+        {
+          "operands":["A", "X"],
+          "values":{"pair":1}
+        },
+        {
+          "operands":["A", "Y"],
+          "values":{"pair":2}
+        },
+        {
+          "operands":["A", "D"],
+          "values":{"pair":3}
+        }
+      ]
+    },
+    {
+      "mnemonic": "AND",
+      "operands": [
+        {
+          "name": "pair",
+          "type": "selector",
+          "values": {"": 0, "X": 1, "Y": 2, "D": 3}
+        }
+      ],
+      "encoding": "110100 {pair:2}",
+      "aliases":[
+        {
+          "operands":["X", "Y"],
+          "values":{"pair":0}
+        },
+        {
+          "operands":["A", "X"],
+          "values":{"pair":1}
+        },
+        {
+          "operands":["A", "Y"],
+          "values":{"pair":2}
+        },
+        {
+          "operands":["A", "D"],
+          "values":{"pair":3}
+        }
+      ]
+    },
+    {
+      "mnemonic": "OR",
+      "operands": [
+        {
+          "name": "pair",
+          "type": "selector",
+          "values": {"": 0, "X": 1, "Y": 2, "D": 3}
+        }
+      ],
+      "encoding": "110101 {pair:2}",
+      "aliases":[
+        {
+          "operands":["X", "Y"],
+          "values":{"pair":0}
+        },
+        {
+          "operands":["A", "X"],
+          "values":{"pair":1}
+        },
+        {
+          "operands":["A", "Y"],
+          "values":{"pair":2}
+        },
+        {
+          "operands":["A", "D"],
+          "values":{"pair":3}
+        }
+      ]
+    },
+    {
+      "mnemonic": "XOR",
+      "operands": [
+        {
+          "name": "pair",
+          "type": "selector",
+          "values": {"": 0, "X": 1, "Y": 2, "D": 3}
+        }
+      ],
+      "encoding": "110110 {pair:2}",
+      "aliases":[
+        {
+          "operands":["X", "Y"],
+          "values":{"pair":0}
+        },
+        {
+          "operands":["A", "X"],
+          "values":{"pair":1}
+        },
+        {
+          "operands":["A", "Y"],
+          "values":{"pair":2}
+        },
+        {
+          "operands":["A", "D"],
+          "values":{"pair":3}
+        }
+      ]
+    },
+    {
+      "mnemonic": "CMP",
+      "operands": [
+        {
+          "name": "pair",
+          "type": "selector",
+          "values": {"": 0, "X": 1, "Y": 2, "D": 3}
+        }
+      ],
+      "encoding": "110111 {pair:2}",
+      "aliases":[
+        {
+          "operands":["X", "Y"],
+          "values":{"pair":0}
+        },
+        {
+          "operands":["A", "X"],
+          "values":{"pair":1}
+        },
+        {
+          "operands":["A", "Y"],
+          "values":{"pair":2}
+        },
+        {
+          "operands":["A", "D"],
+          "values":{"pair":3}
+        }
+      ]
+    },
+    {
+      "mnemonic": "LDI",
+      "operands": [
+        {
+          "name": "imm4",
+          "type": "immediate",
+          "size": 4
+        }
+      ],
+      "encoding": "1110 {imm4:4}"
+    }
+      ]
+    },
+    {
+        "dar": 1,
+        "name": "MXTTY/11",
+        "instructions": [
+            {
+                "mnemonic": "MOV",
+                "operands":[
+                    {
+                        "name": "dir",
+                        "type": "selector",
+                        "values": {"RX": 0, "TX": 1}
+                    },
+                    {
+                        "name": "reg",
+                        "type": "register",
+                        "values": {"A": 0, "X": 1, "Y": 2, "D": 3, "DAR": 4, "MBR": 5, "INSP": 6, "FLAGS": 7, "SA": 8, "SX": 9, "SY": 10, "SD": 11, "R0": 12, "R1": 13, "R2": 14, "R3": 15}
+                    }
+                ],
+                "encoding": "000 {dir:1} {reg:4}",
+                "description": "Move a general register to or from the MXTTY/11 device."
+            },
+            {
+                "mnemonic": "SEND",
+                "operands": [],
+                "encoding": "00100000",
+                "description": "Send the contents of the TX register to the MXTTY/11 device."
+            },
+            {
+                "mnemonic": "RECV",
+                "operands": [],
+                "encoding": "00100001",
+                "description": "Receive a character from the MXTTY/11 device into the RX register."
+            }
+        ]
+    }
+  ]
+}

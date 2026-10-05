@@ -5,6 +5,7 @@ from pathlib import Path
 
 from mxsm.assembler import Assembler
 from mxsm.bitfield import EncodingError
+from mxsm.disassembler import Disassembler
 from mxsm.line_assembler import assemble_line
 from mxsm.schema import ISA, ISAError, ISAEncodingIndex, ISAProductionTree
 
@@ -76,6 +77,68 @@ class ISASchemaTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ISAError, "overlaps Control/System instruction DSEL"):
             ISA.from_dict(definition)
+
+    def test_domain_register_maps_override_and_extend_shared_registers(self):
+        isa = ISA.from_dict({
+            "isa": "domain-register-test",
+            "registers": {"A": 0, "X": 1},
+            "control_set": {
+                "name": "Control/System",
+                "instructions": [{
+                    "mnemonic": "CTRL",
+                    "operands": [{"name": "reg", "type": "register"}],
+                    "encoding": "11 {reg:2}",
+                }],
+            },
+            "domains": [
+                {
+                    "dar": 0,
+                    "name": "Base",
+                    "registers": {"A": 2, "ONLY0": 3},
+                    "instructions": [{
+                        "mnemonic": "GET",
+                        "operands": [{"name": "reg", "type": "register"}],
+                        "encoding": "00 {reg:2}",
+                    }],
+                },
+                {
+                    "dar": 1,
+                    "name": "Device",
+                    "registers": {"A": 3, "ONLY1": 2},
+                    "instructions": [{
+                        "mnemonic": "PUT",
+                        "operands": [{"name": "reg", "type": "register"}],
+                        "encoding": "01 {reg:2}",
+                    }],
+                },
+            ],
+        })
+
+        self.assertEqual(isa.registers, ["A", "X", "ONLY0", "ONLY1"])
+        self.assertEqual(assemble_line(isa, "GET A").encoded, b"\x02")
+        self.assertEqual(assemble_line(isa, "GET X").encoded, b"\x01")
+        self.assertEqual(assemble_line(isa, "GET ONLY0").encoded, b"\x03")
+        self.assertEqual(assemble_line(isa, "PUT A").encoded, b"\x07")
+        self.assertEqual(assemble_line(isa, "CTRL A").encoded, b"\x0c")
+
+        assembler = Assembler(isa.spec)
+        assembler.ir_pass("GET ONLY0\nPUT A")
+        self.assertEqual(assembler.assemble_ins()[:2], b"\x03\x07")
+        self.assertIn("GET A", Disassembler(isa.spec).disassemble(b"\x02"))
+
+    def test_domain_register_codes_must_be_unique_after_overlay(self):
+        with self.assertRaisesRegex(ISAError, "duplicate register code in domain DAR 1"):
+            ISA.from_dict({
+                "isa": "duplicate-domain-register-test",
+                "registers": {"A": 0, "X": 1},
+                "control_set": {"name": "Control/System", "instructions": []},
+                "domains": [{
+                    "dar": 1,
+                    "name": "Device",
+                    "registers": {"A": 1},
+                    "instructions": [],
+                }],
+            })
 
     def test_selector_operand_may_be_absent_or_present(self):
         isa = ISA.from_json("mx11su.json")

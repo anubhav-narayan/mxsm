@@ -34,7 +34,7 @@ class Disassembler:
                     return name
         if operand.type == 'register':
             try:
-                return self.isa.resolve_register_name(operand, value)
+                return self.isa.resolve_register_name(operand, value, instruction)
             except Exception:
                 pass
         if operand.signed:

@@ -25,7 +25,7 @@ from prompt_toolkit.completion import Completer, Completion                   # 
 from prompt_toolkit.history import FileHistory                                # noqa: E402
 from prompt_toolkit.styles import Style                                        # noqa: E402
 
-DEFAULT_ISA = Path(__file__).resolve().parent.parent / "mx11su.json"
+DEFAULT_ISA = Path(__file__).resolve().parent.parent / "mx1171.json"
 HISTORY_FILE = Path.home() / ".cache" / "mxsm" / "repl.history"
 
 

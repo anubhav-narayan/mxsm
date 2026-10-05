@@ -54,7 +54,14 @@ An ISA may separate shared control instructions from instructions selected by
 the DAR value. In this form, `control_set` is an object with a descriptive
 `name` and an `instructions` array. Each entry in `domains` has a unique
 non-negative `dar`, a descriptive `name`, and its own `instructions` array.
-Do not also provide the legacy top-level `instructions` array.
+Domains may also declare a `registers` object mapping register names to codes.
+It overlays the top-level `registers` map: domain entries may add names or
+override codes, while unmentioned shared registers remain available. Effective
+register codes must be unique within each domain, but may be reused in other
+domains. Control/System instructions use only the top-level register map.
+An instruction operand's `values` map, when present, still takes precedence
+over these maps for that operand. Do not also provide the legacy top-level
+`instructions` array.
 
 Control/System instructions are available in every domain and are protected:
 the loader rejects a domain encoding that can match a Control/System encoding
@@ -82,6 +89,7 @@ executed by the assembler or disassembler.
     {
       "dar": 1,
       "name": "MXTTY/11",
+      "registers": {"RX": 0, "TX": 1},
       "instructions": [{"mnemonic": "TTYOUT", "encoding": "00000001"}]
     }
   ]
