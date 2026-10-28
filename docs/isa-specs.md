@@ -45,8 +45,8 @@ instruction's encoded size.
 ```
 
 Register names and instruction mnemonics use letters or `_` first, followed by
-letters, digits, or `_`. Register codes must be unique within the composed
-specification. Mnemonic lookup is case-insensitive.
+letters, digits, or `_`. Assembler-visible register codes must be unique
+within the top-level `registers` map. Mnemonic lookup is case-insensitive.
 
 ### Control/System Set and DAR Domains
 
@@ -54,14 +54,19 @@ An ISA may separate shared control instructions from instructions selected by
 the DAR value. In this form, `control_set` is an object with a descriptive
 `name` and an `instructions` array. Each entry in `domains` has a unique
 non-negative `dar`, a descriptive `name`, and its own `instructions` array.
-Domains may also declare a `registers` object mapping register names to codes.
-It overlays the top-level `registers` map: domain entries may add names or
-override codes, while unmentioned shared registers remain available. Effective
-register codes must be unique within each domain, but may be reused in other
-domains. Control/System instructions use only the top-level register map.
-An instruction operand's `values` map, when present, still takes precedence
-over these maps for that operand. Do not also provide the legacy top-level
+Domains may also declare a `context_registers` object mapping domain-local
+context register names to codes. These are metadata for the domain's local
+context and are not assembler registers: they do not add names to the
+assembler's register vocabulary or affect register operand resolution.
+Context register codes must be unique within each domain, but may be reused
+in other domains or by assembler-visible registers. Assembly register
+operands use their `values` map when present and otherwise use the top-level
+`registers` map, including in domain instructions. Control/System instructions
+also use only the top-level map. Do not also provide the legacy top-level
 `instructions` array.
+
+The former domain-level `registers` field is rejected; use
+`context_registers` for domain-local context metadata.
 
 Control/System instructions are available in every domain and are protected:
 the loader rejects a domain encoding that can match a Control/System encoding
@@ -89,7 +94,7 @@ executed by the assembler or disassembler.
     {
       "dar": 1,
       "name": "MXTTY/11",
-      "registers": {"RX": 0, "TX": 1},
+      "context_registers": {"RX": 0, "TX": 1},
       "instructions": [{"mnemonic": "TTYOUT", "encoding": "00000001"}]
     }
   ]
@@ -100,6 +105,26 @@ The loaded `ISA` exposes `control_set_name`, `control_instructions`,
 `domain_names`, and `domain_instructions`. `all_instructions()` remains a
 flattened view for compatibility with existing callers. The older flat
 `instructions` form remains supported for ISAs without DAR domains.
+
+### Visualizing an ISA
+
+`ISAVisualizer` renders a validated ISA as a Mermaid flowchart or a plain
+ASCII tree. Both views show assembler-visible registers, instruction encodings
+and operand fields, control/domain groupings, and domain context-register
+metadata. Operand fields of type `context_register` are identified separately
+and show the effective values for their domain. The `to_markdown()` method
+wraps the Mermaid diagram in a code fence for Markdown viewers:
+
+```python
+from mxsm import ISAVisualizer
+
+visualizer = ISAVisualizer("mx11su.json")
+print(visualizer.to_markdown())
+```
+
+Use `to_mermaid()` when embedding the diagram in another Mermaid document or
+viewer. Use `to_ascii_tree()` (or its `to_ascii()` alias) for terminal output
+or other text-only environments.
 
 ## Instruction Forms
 
@@ -126,17 +151,20 @@ properties:
 
 | Property | Default | Meaning |
 | --- | --- | --- |
-| `type` | `"immediate"` | One of `register`, `immediate`, `label`, `selector`, or `memory`. |
+| `type` | `"immediate"` | One of `register`, `context_register`, `immediate`, `label`, `selector`, or `memory`. |
 | `values` | None | Object mapping accepted names to numeric codes/values. Commonly used for register and selector operands. |
 | `signed` | `false` | Treat the encoded field as a signed two's-complement integer. |
 | `size` | None | Declared operand size in bits; if supplied, it must be positive and at least as wide as the operand's encoded field. |
 
 Register operands use their `values` map when present, otherwise the top-level
-`registers` map. Selector operands normally define a `values` map; an empty-name
-entry (`"": 0`) represents the selector's default value and allows it to be
-omitted from assembly source. `immediate`, `label`, and `memory` operands can
-take numeric values; the assembler also resolves symbols for label and memory
-operands.
+`registers` map. `context_register` operands are valid only on domain
+instructions; they use their `values` map when present, otherwise that
+domain's `context_registers` map. These names are resolved only for the
+corresponding operand and are not added to the assembler-wide register list.
+Selector operands normally define a `values` map; an empty-name entry (`"": 0`)
+represents the selector's default value and allows it to be omitted from
+assembly source. `immediate`, `label`, and `memory` operands can take numeric
+values; the assembler also resolves symbols for label and memory operands.
 
 `size` does not enlarge an encoding field. The field width in `encoding`
 controls the value range that can be encoded. For example, `size: 8` paired

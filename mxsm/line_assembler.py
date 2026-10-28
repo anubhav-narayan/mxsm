@@ -88,8 +88,8 @@ def _try_match(isa: ISA, ins_def: InstructionDef,
         token = operand_tokens[token_index]
         token_value = token.value
         token_index += 1
-        if op.type == "register":
-            table = op.values or isa.register_map_for(ins_def)
+        if op.type in {"register", "context_register"}:
+            table = isa.values_for(op, ins_def)
             name = token_value.upper()
             if name not in table:
                 return None
@@ -119,8 +119,8 @@ def describe_usage(isa: ISA, ins_def: InstructionDef) -> str:
         return ins_def.mnemonic
     parts = []
     for op in ins_def.operands:
-        if op.type == "register":
-            names = sorted((op.values or isa.register_map_for(ins_def)).keys())
+        if op.type in {"register", "context_register"}:
+            names = sorted(isa.values_for(op, ins_def).keys())
             parts.append("{" + "|".join(names) + "}")
         elif op.type == "selector":
             names = sorted(name for name in (op.values or {}) if name)
@@ -185,10 +185,14 @@ def _try_alias(isa: ISA, ins_def: InstructionDef,
         values = {}
         for operand in ins_def.operands:
             value = alias["values"][operand.name]
-            if isinstance(value, str) and operand.type in {"register", "selector"}:
+            if isinstance(value, str) and operand.type in {
+                "register", "context_register", "selector"
+            }:
                 table = operand.values or (
                     isa.register_map_for(ins_def)
                     if operand.type == "register"
+                    else isa.context_register_map_for(ins_def)
+                    if operand.type == "context_register"
                     else isa._register_codes
                 )
                 if value.upper() in table:

@@ -8,6 +8,7 @@ from mxsm.bitfield import EncodingError
 from mxsm.disassembler import Disassembler
 from mxsm.line_assembler import assemble_line
 from mxsm.schema import ISA, ISAError, ISAEncodingIndex, ISAProductionTree
+from mxsm.tokenizer import TokenType, Tokenizer
 
 
 def rv32i_test_spec():
@@ -78,7 +79,7 @@ class ISASchemaTests(unittest.TestCase):
         with self.assertRaisesRegex(ISAError, "overlaps Control/System instruction DSEL"):
             ISA.from_dict(definition)
 
-    def test_domain_register_maps_override_and_extend_shared_registers(self):
+    def test_domain_context_registers_do_not_affect_assembler_registers(self):
         isa = ISA.from_dict({
             "isa": "domain-register-test",
             "registers": {"A": 0, "X": 1},
@@ -94,7 +95,7 @@ class ISASchemaTests(unittest.TestCase):
                 {
                     "dar": 0,
                     "name": "Base",
-                    "registers": {"A": 2, "ONLY0": 3},
+                    "context_registers": {"A": 2, "RX": 3},
                     "instructions": [{
                         "mnemonic": "GET",
                         "operands": [{"name": "reg", "type": "register"}],
@@ -104,7 +105,7 @@ class ISASchemaTests(unittest.TestCase):
                 {
                     "dar": 1,
                     "name": "Device",
-                    "registers": {"A": 3, "ONLY1": 2},
+                    "context_registers": {"A": 3, "TX": 2},
                     "instructions": [{
                         "mnemonic": "PUT",
                         "operands": [{"name": "reg", "type": "register"}],
@@ -114,29 +115,96 @@ class ISASchemaTests(unittest.TestCase):
             ],
         })
 
-        self.assertEqual(isa.registers, ["A", "X", "ONLY0", "ONLY1"])
-        self.assertEqual(assemble_line(isa, "GET A").encoded, b"\x02")
+        self.assertEqual(isa.registers, ["A", "X"])
+        self.assertEqual(isa.domain_context_register_codes, {
+            0: {"A": 2, "RX": 3},
+            1: {"A": 3, "TX": 2},
+        })
+        self.assertEqual(assemble_line(isa, "GET A").encoded, b"\x00")
         self.assertEqual(assemble_line(isa, "GET X").encoded, b"\x01")
-        self.assertEqual(assemble_line(isa, "GET ONLY0").encoded, b"\x03")
-        self.assertEqual(assemble_line(isa, "PUT A").encoded, b"\x07")
+        self.assertEqual(assemble_line(isa, "PUT A").encoded, b"\x04")
         self.assertEqual(assemble_line(isa, "CTRL A").encoded, b"\x0c")
+        rx_token = Tokenizer(isa.instructions, isa.registers).tokenize_line("GET RX", 0)[1]
+        self.assertIs(rx_token.type, TokenType.SYMBOL)
 
         assembler = Assembler(isa.spec)
-        assembler.ir_pass("GET ONLY0\nPUT A")
-        self.assertEqual(assembler.assemble_ins()[:2], b"\x03\x07")
-        self.assertIn("GET A", Disassembler(isa.spec).disassemble(b"\x02"))
+        assembler.ir_pass("GET A\nPUT A")
+        self.assertEqual(assembler.assemble_ins()[:2], b"\x00\x04")
+        self.assertIn("GET A", Disassembler(isa.spec).disassemble(b"\x00"))
 
-    def test_domain_register_codes_must_be_unique_after_overlay(self):
-        with self.assertRaisesRegex(ISAError, "duplicate register code in domain DAR 1"):
+    def test_domain_context_register_codes_must_be_unique(self):
+        with self.assertRaisesRegex(ISAError, "duplicate context register code in domain DAR 1"):
             ISA.from_dict({
                 "isa": "duplicate-domain-register-test",
-                "registers": {"A": 0, "X": 1},
                 "control_set": {"name": "Control/System", "instructions": []},
                 "domains": [{
                     "dar": 1,
                     "name": "Device",
-                    "registers": {"A": 1},
+                    "context_registers": {"RX": 1, "TX": 1},
                     "instructions": [],
+                }],
+            })
+
+    def test_domain_registers_must_use_context_registers_field(self):
+        with self.assertRaisesRegex(ISAError, "use context_registers"):
+            ISA.from_dict({
+                "isa": "legacy-domain-register-test",
+                "control_set": {"name": "Control/System", "instructions": []},
+                "domains": [{
+                    "dar": 1,
+                    "name": "Device",
+                    "registers": {"RX": 0},
+                    "instructions": [],
+                }],
+            })
+
+    def test_domain_context_register_operand_type_is_local_to_its_domain(self):
+        isa = ISA.from_dict({
+            "isa": "context-register-operand-test",
+            "registers": {"A": 1},
+            "control_set": {"name": "Control/System", "instructions": []},
+            "domains": [{
+                "dar": 2,
+                "name": "Device",
+                "context_registers": {"RX": 0, "TX": 1},
+                "instructions": [{
+                    "mnemonic": "SET",
+                    "operands": [
+                        {"name": "local", "type": "context_register"},
+                        {
+                            "name": "reg",
+                            "type": "register",
+                            "values": {"A": 1},
+                        },
+                    ],
+                    "encoding": "00 {local:2} {reg:4}",
+                }],
+            }],
+        })
+
+        self.assertEqual(isa.registers, ["A"])
+        self.assertEqual(assemble_line(isa, "SET TX, A").encoded, b"\x11")
+        self.assertEqual(assemble_line(isa, "SET RX, A").encoded, b"\x01")
+
+        assembler = Assembler(isa.spec)
+        assembler.ir_pass("SET TX, A")
+        self.assertEqual(assembler.assemble_ins()[:1], b"\x11")
+        self.assertIn("SET TX, A", Disassembler(isa.spec).disassemble(b"\x11"))
+
+        instruction = isa.find("SET", 2)
+        self.assertEqual(
+            [encoded for _, encoded in isa.build(instruction)],
+            [b"\x01", b"\x11"],
+        )
+
+    def test_context_register_operand_requires_domain_context(self):
+        with self.assertRaisesRegex(ISAError, "only valid in a DAR domain"):
+            ISA.from_dict({
+                "isa": "legacy-context-register-test",
+                "instructions": [{
+                    "mnemonic": "SET",
+                    "operands": [{"name": "local", "type": "context_register"}],
+                    "encoding": "{local:2}",
                 }],
             })
 

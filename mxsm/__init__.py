@@ -1,4 +1,5 @@
 from .schema import ISA, ISAEncodingIndex, ISAError
+from .visualizer import ISAVisualizer
 
 
 def __getattr__(name):
@@ -11,4 +12,4 @@ def __getattr__(name):
 	raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-__all__ = ["Assembler", "Disassembler", "ISA", "ISAEncodingIndex", "ISAError"]
+__all__ = ["Assembler", "Disassembler", "ISA", "ISAEncodingIndex", "ISAError", "ISAVisualizer"]

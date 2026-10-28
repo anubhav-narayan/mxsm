@@ -212,8 +212,8 @@ class Assembler:
         number = self._number(token)
         if number is not None and operand.type in {"immediate", "label", "memory"}:
             return number
-        if operand.type == "register":
-            table = operand.values or self.isa.register_map_for(instruction)
+        if operand.type in {"register", "context_register"}:
+            table = self.isa.values_for(operand, instruction)
             return table.get(token.value.upper())
         if operand.type == "selector":
             table = operand.values or {"": 0}

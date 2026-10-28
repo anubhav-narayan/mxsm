@@ -407,38 +407,81 @@
     },
     {
         "dar": 1,
-        "name": "MXTTY/11",
+        "name": "MXSHIFT/11",
         "instructions": [
             {
-                "mnemonic": "MOV",
-                "operands":[
-                    {
-                        "name": "dir",
-                        "type": "selector",
-                        "values": {"RX": 0, "TX": 1}
-                    },
-                    {
-                        "name": "reg",
-                        "type": "register",
-                        "values": {"A": 0, "X": 1, "Y": 2, "D": 3, "DAR": 4, "MBR": 5, "INSP": 6, "FLAGS": 7, "SA": 8, "SX": 9, "SY": 10, "SD": 11, "R0": 12, "R1": 13, "R2": 14, "R3": 15}
-                    }
-                ],
-                "encoding": "000 {dir:1} {reg:4}",
-                "description": "Move a general register to or from the MXTTY/11 device."
+              "mnemonic": "SHL",
+              "operands": [
+                {
+                  "name": "shift",
+                  "type": "immediate",
+                  "size": 3
+                }
+              ],
+              "encoding": "00000 {shift:3}"
             },
             {
-                "mnemonic": "SEND",
-                "operands": [],
-                "encoding": "00100000",
-                "description": "Send the contents of the TX register to the MXTTY/11 device."
+              "mnemonic": "ROL",
+              "operands": [
+                {
+                  "name": "shift",
+                  "type": "immediate",
+                  "size": 3
+                }
+              ],
+              "encoding": "00001 {shift:3}"
             },
             {
-                "mnemonic": "RECV",
-                "operands": [],
-                "encoding": "00100001",
-                "description": "Receive a character from the MXTTY/11 device into the RX register."
+              "mnemonic": "SHR",
+              "operands": [
+                {
+                  "name": "shift",
+                  "type": "immediate",
+                  "size": 3
+                }
+              ],
+              "encoding": "00010 {shift:3}"
+            },
+            {
+              "mnemonic": "ROR",
+              "operands": [
+                {
+                  "name": "shift",
+                  "type": "immediate",
+                  "size": 3
+                }
+              ],
+              "encoding": "00011 {shift:3}"
             }
         ]
+    },
+    {
+      "name": "MXPAGE/11",
+      "dar": 2,
+      "context_registers": {
+        "IPAGE": 0,
+        "DPAGE": 1,
+        "IRQPAGE": 2,
+        "NMIPAGE": 3
+      },
+      "instructions": [
+        {
+          "mnemonic": "SET",
+          "operands":[
+            {
+              "name": "local",
+              "type": "context_register",
+              "values": {"IPAGE": 0, "DPAGE":1, "IRQPAGE":2, "NMIPAGE":3}
+            },
+            {
+              "name":"base_reg",
+              "type":"register",
+              "values": {"A": 0, "X": 1, "Y": 2, "D": 3, "DAR": 4, "MBR": 5, "INSP": 6, "FLAGS": 7, "SA": 8, "SX": 9, "SY": 10, "SD": 11, "R0": 12, "R1": 13, "R2": 14, "R3": 15}
+            }
+          ],
+          "encoding": "00 {local:2} {base_reg:4}"
+        }
+      ]
     }
   ]
 }

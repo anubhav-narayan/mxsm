@@ -32,7 +32,7 @@ class Disassembler:
             for name, code in values.items():
                 if code == value:
                     return name
-        if operand.type == 'register':
+        if operand.type in {'register', 'context_register'}:
             try:
                 return self.isa.resolve_register_name(operand, value, instruction)
             except Exception:

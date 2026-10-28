@@ -16,7 +16,7 @@ class ISAError(Exception):
 
 
 _NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
-_OPERAND_TYPES = {"register", "immediate", "label", "selector", "memory"}
+_OPERAND_TYPES = {"register", "context_register", "immediate", "label", "selector", "memory"}
 
 
 @dataclass
@@ -164,7 +164,7 @@ class ISA:
         domain_instructions: Optional[Dict[int, List[InstructionDef]]] = None,
         domain_names: Optional[Dict[int, str]] = None,
         control_set_name: Optional[str] = None,
-        domain_register_codes: Optional[Dict[int, Dict[str, int]]] = None,
+        domain_context_register_codes: Optional[Dict[int, Dict[str, int]]] = None,
     ):
         self.spec = spec
         self.name = spec["isa"]
@@ -179,7 +179,7 @@ class ISA:
         self.domain_instructions = domain_instructions or {}
         self.domain_names = domain_names or {}
         self.control_set_name = control_set_name
-        self.domain_register_codes = domain_register_codes or {}
+        self.domain_context_register_codes = domain_context_register_codes or {}
 
     @property
     def instructions(self) -> List[str]:
@@ -188,11 +188,8 @@ class ISA:
 
     @property
     def registers(self) -> List[str]:
-        """Register names in declaration order."""
-        names = dict.fromkeys(self._register_codes)
-        for register_codes in self.domain_register_codes.values():
-            names.update(dict.fromkeys(register_codes))
-        return list(names)
+        """Assembler-visible register names in declaration order."""
+        return list(self._register_codes)
 
     @property
     def mnemonics(self) -> set[str]:
@@ -217,7 +214,7 @@ class ISA:
             raise ISAError("instructions cannot be combined with control_set or domains")
 
         instruction_groups = []
-        domain_register_overrides = {}
+        domain_context_registers = {}
         control_name = None
         if has_structured_instructions:
             control_set = spec.get("control_set", {"name": "Control/System", "instructions": []})
@@ -241,7 +238,12 @@ class ISA:
                 dar_value = domain.get("dar")
                 domain_name = domain.get("name")
                 domain_raw = domain.get("instructions", [])
-                domain_registers = domain.get("registers", {})
+                if "registers" in domain:
+                    raise ISAError(
+                        f"domain {domain_index}.registers is not supported; "
+                        "use context_registers for domain-local context registers"
+                    )
+                context_registers = domain.get("context_registers", {})
                 if not isinstance(dar_value, int) or isinstance(dar_value, bool) or dar_value < 0:
                     raise ISAError(f"domain {domain_index}.dar must be a non-negative integer")
                 if dar_value in seen_dar_values:
@@ -250,10 +252,10 @@ class ISA:
                     raise ISAError(f"domain {domain_index}.name must be a non-empty string")
                 if not isinstance(domain_raw, list):
                     raise ISAError(f"domain {domain_index}.instructions must be an array")
-                if not isinstance(domain_registers, dict):
-                    raise ISAError(f"domain {domain_index}.registers must be an object")
+                if not isinstance(context_registers, dict):
+                    raise ISAError(f"domain {domain_index}.context_registers must be an object")
                 seen_dar_values.add(dar_value)
-                domain_register_overrides[dar_value] = domain_registers
+                domain_context_registers[dar_value] = context_registers
                 instruction_groups.append(("domain", dar_value, domain_raw))
         else:
             instruction_groups.append(("legacy", None, raw_instructions))
@@ -287,20 +289,23 @@ class ISA:
             if code in register_codes.values():
                 raise ISAError(f"duplicate register code: {code}")
             register_codes[register] = code
-        domain_register_codes = {}
-        for dar_value, overrides in domain_register_overrides.items():
-            effective_registers = dict(register_codes)
-            for register, code in overrides.items():
+        domain_context_register_codes = {}
+        for dar_value, context_registers in domain_context_registers.items():
+            context_register_codes = {}
+            for register, code in context_registers.items():
                 if not isinstance(register, str) or not _NAME_RE.fullmatch(register):
-                    raise ISAError(f"invalid register name in domain DAR {dar_value}: {register!r}")
+                    raise ISAError(
+                        f"invalid context register name in domain DAR {dar_value}: {register!r}"
+                    )
                 if not isinstance(code, int) or isinstance(code, bool) or code < 0:
                     raise ISAError(
-                        f"domain DAR {dar_value} register {register!r} code must be a non-negative integer"
+                        f"domain DAR {dar_value} context register {register!r} "
+                        "code must be a non-negative integer"
                     )
-                effective_registers[register] = code
-            if len(effective_registers.values()) != len(set(effective_registers.values())):
-                raise ISAError(f"duplicate register code in domain DAR {dar_value}")
-            domain_register_codes[dar_value] = effective_registers
+                if code in context_register_codes.values():
+                    raise ISAError(f"duplicate context register code in domain DAR {dar_value}: {code}")
+                context_register_codes[register] = code
+            domain_context_register_codes[dar_value] = context_register_codes
         forms: Dict[str, List[InstructionDef]] = {}
         control_instructions: List[InstructionDef] = []
         domain_instructions: Dict[int, List[InstructionDef]] = {
@@ -368,6 +373,19 @@ class ISA:
                 mnemonic, operands, encoding, raw.get("meta", {}), aliases,
                 description, operation, scope, dar_value,
             )
+            for operand in operands:
+                if operand.type == "context_register":
+                    if scope != "domain":
+                        raise ISAError(
+                            f"{mnemonic}.{operand.name}: context_register operands "
+                            "are only valid in a DAR domain"
+                        )
+                    if not operand.values and not domain_context_register_codes.get(dar_value):
+                        raise ISAError(
+                            f"{mnemonic}.{operand.name}: context_register operand "
+                            f"requires context_registers in domain DAR {dar_value} "
+                            "or an operand values map"
+                        )
             signature = (scope, dar_value, mnemonic, encoding)
             if signature in seen:
                 raise ISAError(f"duplicate instruction definition: {mnemonic} {encoding!r}")
@@ -399,7 +417,7 @@ class ISA:
             domain_instructions,
             domain_names,
             control_name,
-            domain_register_codes,
+            domain_context_register_codes,
         )
 
     @classmethod
@@ -416,10 +434,28 @@ class ISA:
         return [form for forms in self._forms.values() for form in forms]
 
     def register_map_for(self, instruction: InstructionDef) -> Dict[str, int]:
-        """Return the shared or domain-effective register map for a form."""
-        if instruction.scope == "domain" and instruction.dar is not None:
-            return self.domain_register_codes[instruction.dar]
+        """Return the assembler-visible register map for a form."""
         return self._register_codes
+
+    def context_register_map_for(self, instruction: InstructionDef) -> Dict[str, int]:
+        """Return domain-local context registers without exposing them globally."""
+        if instruction.scope != "domain" or instruction.dar is None:
+            raise ISAError("context registers are only available to domain instructions")
+        return self.domain_context_register_codes[instruction.dar]
+
+    def values_for(
+        self, operand: OperandDef, instruction: Optional[InstructionDef] = None
+    ) -> Dict[str, int]:
+        """Return an operand's explicit or type-specific symbolic values."""
+        if operand.values:
+            return operand.values
+        if operand.type == "context_register":
+            if instruction is None:
+                return {}
+            return self.context_register_map_for(instruction)
+        if operand.type == "register":
+            return self.register_map_for(instruction) if instruction is not None else self._register_codes
+        return {}
 
     def build(self, instruction: InstructionDef) -> List[Tuple[Dict[str, int], bytes]]:
         """Build every concrete operand expansion of an instruction form.
@@ -434,10 +470,12 @@ class ISA:
 
         domains = []
         for operand in instruction.operands:
-            if operand.values is not None:
+            if operand.values:
                 values = list(operand.values.values())
             elif operand.type == "register":
                 values = list(self.register_map_for(instruction).values())
+            elif operand.type == "context_register":
+                values = list(self.context_register_map_for(instruction).values())
             else:
                 width = instruction.pattern.field_widths[operand.name]
                 if operand.signed:
@@ -459,19 +497,15 @@ class ISA:
     def resolve_register(
         self, operand: OperandDef, name: str, instruction: Optional[InstructionDef] = None
     ) -> int:
-        table = operand.values or (
-            self.register_map_for(instruction) if instruction is not None else self._register_codes
-        )
+        table = self.values_for(operand, instruction)
         if name not in table:
-            raise ISAError(f"'{name}' is not a valid register for this operand")
+            raise ISAError(f"'{name}' is not a valid value for this operand")
         return table[name]
 
     def resolve_register_name(
         self, operand: OperandDef, code: int, instruction: Optional[InstructionDef] = None
     ) -> str:
-        table = operand.values or (
-            self.register_map_for(instruction) if instruction is not None else self._register_codes
-        )
+        table = self.values_for(operand, instruction)
         for name, value in table.items():
             if value == code:
                 return name
