@@ -17,6 +17,8 @@ prompt-toolkit = "^3.0.52"
 [tool.poetry.scripts]
 mxsm = "mxsm.cli:main"
 mxsm-link = "mxsm.cli:link_main"
+bin2mif = "mxsm.cli:bin2mif_main"
+hex2mif = "mxsm.cli:hex2mif_main"
 
 
 [build-system]

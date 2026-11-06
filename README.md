@@ -106,7 +106,16 @@ mxsm assemble source.mx11 --isa mx11su.json --format mxp -o build/source.mxp
 mxsm assemble source.mx11 --isa mx11su.json --format raw -o build/
 mxsm disassemble build/ins.bin --isa mx11su.json -o build/ins.mx11
 mxsm extract program.mxe -o build/raw
+mxsm bin2mif build/ins.bin -o build/ins.mif
+mxsm hex2mif build/ins.hex -o build/ins.mif
+mxsm bin2mif build/ins.bin --width 16 --byte-order little -o build/ins.mif
 ```
+
+`bin2mif` and `hex2mif` are also available as standalone commands. The hex
+input must contain hexadecimal byte values separated by whitespace. Both
+commands accept byte-aligned `--width` values (default `8`); wider words are
+packed according to `--byte-order` (`big` by default), and an incomplete final
+word is zero-padded.
 
 Use `--format mxo` to write the binary `program.mxo` object file. The
 file starts with an 8-byte MXSM signature:

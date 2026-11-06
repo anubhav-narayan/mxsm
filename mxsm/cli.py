@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import pprint
 from pathlib import Path
+from typing import Literal
 
 import click
 
@@ -38,6 +39,71 @@ def _write(path: Path, content: str | bytes) -> None:
             path.write_text(content)
     except OSError as error:
         raise click.ClickException(f"cannot write {path}: {error}") from error
+
+
+def _validate_mif_width(ctx: click.Context, param: click.Parameter, value: int) -> int:
+    if value % 8:
+        raise click.BadParameter("must be a multiple of 8 bits", ctx=ctx, param=param)
+    return value
+
+
+def _mif_content(data: bytes, width: int, byte_order: Literal["big", "little"]) -> str:
+    bytes_per_word = width // 8
+    padded_data = data + b"\x00" * (-len(data) % bytes_per_word)
+    words = (
+        int.from_bytes(padded_data[offset:offset + bytes_per_word], byte_order)
+        for offset in range(0, len(padded_data), bytes_per_word)
+    )
+    lines = [
+        f"WIDTH={width};",
+        f"DEPTH={len(padded_data) // bytes_per_word};",
+        "",
+        "ADDRESS_RADIX=HEX;",
+        "DATA_RADIX=HEX;",
+        "",
+        "CONTENT BEGIN",
+    ]
+    lines.extend(
+        f"    {address:02X} : {value:0{width // 4}X};"
+        for address, value in enumerate(words)
+    )
+    lines.append("END;")
+    return "\n".join(lines) + "\n"
+
+
+@click.command("bin2mif")
+@click.argument("input_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("-o", "--output", type=click.Path(path_type=Path), required=True,
+              help="Output MIF file.")
+@click.option("--width", type=click.IntRange(min=8), default=8, show_default=True,
+              callback=_validate_mif_width, help="MIF word width in bits (a multiple of 8).")
+@click.option("--byte-order", type=click.Choice(["big", "little"]), default="big",
+              show_default=True, help="Byte order within multi-byte words.")
+def bin2mif_main(input_file: Path, output: Path, width: int, byte_order: Literal["big", "little"]) -> None:
+    """Convert RAW binary INPUT_FILE to a MIF file."""
+    try:
+        _write(output, _mif_content(input_file.read_bytes(), width, byte_order))
+    except OSError as error:
+        raise click.ClickException(str(error)) from error
+
+
+@click.command("hex2mif")
+@click.argument("input_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("-o", "--output", type=click.Path(path_type=Path), required=True,
+              help="Output MIF file.")
+@click.option("--width", type=click.IntRange(min=8), default=8, show_default=True,
+              callback=_validate_mif_width, help="MIF word width in bits (a multiple of 8).")
+@click.option("--byte-order", type=click.Choice(["big", "little"]), default="big",
+              show_default=True, help="Byte order within multi-byte words.")
+def hex2mif_main(input_file: Path, output: Path, width: int, byte_order: Literal["big", "little"]) -> None:
+    """Convert whitespace-separated hexadecimal bytes in INPUT_FILE to MIF."""
+    try:
+        data = bytes.fromhex(input_file.read_text())
+    except OSError as error:
+        raise click.ClickException(str(error)) from error
+    except ValueError as error:
+        raise click.ClickException(f"invalid hexadecimal input in {input_file}: {error}") from error
+    _write(output, _mif_content(data, width, byte_order))
 
 
 @click.group()
@@ -128,6 +194,8 @@ def link_main(object_files: tuple[Path, ...], output: Path, isa_file: Path | Non
 
 
 main.add_command(link_main, "link")
+main.add_command(bin2mif_main)
+main.add_command(hex2mif_main)
 
 
 @main.command("extract")
