@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from mxsm.assembler import Assembler
 from mxsm.linker import LinkError, StaticLinker
 from mxsm.object_format import pack_object
 from mxsm.linker import executable_images
@@ -103,6 +104,51 @@ class LinkerInputTests(unittest.TestCase):
         self.assertEqual(linked["entry"], 0)
         data = next(section for section in linked["sections"] if section["name"] == "data")
         self.assertEqual(data["data"], "00")
+
+    def test_resolves_local_symbols_per_object(self):
+        source = Assembler("mx11su.json").assemble_object(
+            ".ins\nlocal:\nNOP\n.data\n.byte &local\n",
+            packed=True,
+        )
+        linker = StaticLinker()
+        linker.add_object(source)
+        linker.add_object(source)
+
+        linked = linker.link()
+
+        data = next(section for section in linked["sections"] if section["name"] == "data")
+        self.assertEqual(data["data"], "0001")
+        self.assertNotIn("local", linker.symbols)
+
+    def test_resolves_local_definitions_before_exported_symbols(self):
+        local = object_file()
+        local["sections"] = [
+            {"name": "data", "records": [{"address": 0, "data": "00"}]},
+            {"name": "ins", "records": [{"address": 0, "data": "00"}]},
+        ]
+        local["symbols"] = {"target": {"section": "ins", "offset": 0}}
+        local["relocations"] = [{
+            "section": "data",
+            "offset": 0,
+            "symbol": "target",
+            "type": "absolute",
+            "width": 8,
+        }]
+        exported = object_file()
+        exported["sections"] = [
+            {"name": "ins", "records": [{"address": 0, "data": "00"}]},
+        ]
+        exported["symbols"] = {"target": {"section": "ins", "offset": 0}}
+        exported["exports"] = ["target"]
+        linker = StaticLinker()
+        linker.add_object(local)
+        linker.add_object(exported)
+
+        linked = linker.link()
+
+        data = next(section for section in linked["sections"] if section["name"] == "data")
+        self.assertEqual(data["data"], "00")
+        self.assertEqual(linker.symbols["target"].address, 1)
 
     def test_emits_mxe_executable(self):
         linker = StaticLinker()

@@ -106,6 +106,8 @@ mxsm assemble source.mx11 --isa mx11su.json --format mxp -o build/source.mxp
 mxsm assemble source.mx11 --isa mx11su.json --format raw -o build/
 mxsm disassemble build/ins.bin --isa mx11su.json -o build/ins.mx11
 mxsm extract program.mxe -o build/raw
+readmx -a build/source.mxo
+mxsm readmx -hS program.mxe
 mxsm bin2mif build/ins.bin -o build/ins.mif
 mxsm hex2mif build/ins.hex -o build/ins.mif
 mxsm bin2mif build/ins.bin --width 16 --byte-order little -o build/ins.mif
@@ -116,6 +118,11 @@ input must contain hexadecimal byte values separated by whitespace. Both
 commands accept byte-aligned `--width` values (default `8`); wider words are
 packed according to `--byte-order` (`big` by default), and an incomplete final
 word is zero-padded.
+
+`readmx` (also available as `mxsm readmx`) displays the headers and tables
+of binary MXO objects and MXE executables. It shows all available information
+by default; use `-h`, `-S`, `-s`, and `-r` to select the file header, sections,
+symbols, and relocations, or `-a` to show everything.
 
 Use `--format mxo` to write the binary `program.mxo` object file. The
 file starts with an 8-byte MXSM signature:

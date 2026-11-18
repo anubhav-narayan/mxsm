@@ -84,8 +84,10 @@ kernel_main:
 ```
 
 Imported references are emitted as relocations and are resolved by the static
-linker. An exported name must be defined in the same source file. Duplicate
-global definitions are rejected by the linker.
+linker. Labels not named by `.export` remain local to their object file, and
+local definitions take precedence when resolving that object's relocations. An
+exported name must be defined in the same source file. Duplicate global
+definitions are rejected by the linker.
 
 ## Data and layout directives
 

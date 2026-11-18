@@ -21,6 +21,7 @@ import click
 from .assembler import Assembler
 from .disassembler import Disassembler
 from .linker import LinkError, StaticLinker, executable_images
+from .readelf import format_mx_file
 
 
 def _load_isa(path: Path) -> str:
@@ -196,6 +197,41 @@ def link_main(object_files: tuple[Path, ...], output: Path, isa_file: Path | Non
 main.add_command(link_main, "link")
 main.add_command(bin2mif_main)
 main.add_command(hex2mif_main)
+
+
+@click.command("readmx", context_settings={"help_option_names": ["--help"]})
+@click.argument("input_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("-h", "--file-header", "show_header", is_flag=True, help="Display the file header.")
+@click.option("-S", "--sections", "show_sections", is_flag=True, help="Display section headers.")
+@click.option("-s", "--symbols", "show_symbols", is_flag=True, help="Display the symbol table.")
+@click.option("-r", "--relocations", "show_relocations", is_flag=True,
+              help="Display relocation entries.")
+@click.option("-a", "--all", "show_all", is_flag=True, help="Display all available information.")
+def readelf_main(
+    input_file: Path,
+    show_header: bool,
+    show_sections: bool,
+    show_symbols: bool,
+    show_relocations: bool,
+    show_all: bool,
+) -> None:
+    """Display information about an MXO object or MXE executable."""
+    if show_all or not any((show_header, show_sections, show_symbols, show_relocations)):
+        show_header = show_sections = show_symbols = show_relocations = True
+    try:
+        click.echo(format_mx_file(
+            str(input_file),
+            input_file.read_bytes(),
+            show_header=show_header,
+            show_sections=show_sections,
+            show_symbols=show_symbols,
+            show_relocations=show_relocations,
+        ))
+    except (OSError, LinkError, TypeError, ValueError) as error:
+        raise click.ClickException(str(error)) from error
+
+
+main.add_command(readelf_main, "readelf")
 
 
 @main.command("extract")

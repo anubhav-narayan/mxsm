@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "mxsm"
-version = "00.9.10"
+version = "0.9.11"
 description = "MX Cross Assembler"
-authors = ["Anubhav Mattoo"]
+authors = ["Anubhav Mattoo <anubhavmattoo@outlook.com>"]
 license = "MIT"
 readme = "README.md"
 
@@ -19,7 +19,7 @@ mxsm = "mxsm.cli:main"
 mxsm-link = "mxsm.cli:link_main"
 bin2mif = "mxsm.cli:bin2mif_main"
 hex2mif = "mxsm.cli:hex2mif_main"
-
+readmx = "mxsm.cli:readelf_main"
 
 [build-system]
 requires = ["poetry-core"]

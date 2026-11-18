@@ -133,8 +133,9 @@ class StaticLinker:
             "irq": (isa or {}).get("irq_vector", 192),
         }
         self.sections: dict[str, LinkedSection] = {}
-        self._placements: dict[tuple[str, str], tuple[str, int]] = {}
+        self._placements: dict[tuple[int, str], tuple[str, int]] = {}
         self.symbols: dict[str, GlobalSymbol] = {}
+        self.local_symbols: dict[tuple[int, str], GlobalSymbol] = {}
 
     @staticmethod
     def _load_json(source) -> tuple[str, dict]:
@@ -262,12 +263,12 @@ class StaticLinker:
         if not self.objects:
             raise LinkError("cannot lay out an empty link")
 
-        contributions: dict[str, list[tuple[int, bytes]]] = {}
-        for obj in self.objects:
+        contributions: dict[str, list[tuple[int, int, bytes]]] = {}
+        for object_index, obj in enumerate(self.objects):
             for section in obj.definition["sections"]:
                 if obj.definition["format"] == "mxsm-packed":
                     contributions.setdefault(section["name"], []).append(
-                        (section["address"], bytes.fromhex(section["data"]))
+                        (object_index, section["address"], bytes.fromhex(section["data"]))
                     )
                     continue
                 records = section["records"]
@@ -283,75 +284,51 @@ class StaticLinker:
                     offset = record["address"] - base
                     data = bytes.fromhex(record["data"])
                     payload[offset:offset + len(data)] = data
-                contributions.setdefault(section["name"], []).append((base, bytes(payload)))
+                contributions.setdefault(section["name"], []).append(
+                    (object_index, base, bytes(payload))
+                )
 
         result: dict[str, LinkedSection] = {}
         cursors: dict[str, int] = {}
+        placements: dict[tuple[int, str], tuple[str, int]] = {}
         for name, parts in contributions.items():
             fixed = name in {"nmi", "irq"}
             address = self.section_bases.get(name, 0)
             if not fixed:
                 address = cursors.get(name, address)
             payload = bytearray()
-            for part_index, (source_address, data) in enumerate(parts):
+            for object_index, source_address, data in parts:
                 if fixed and source_address != self.section_bases.get(name, source_address):
                     raise LinkError(
                         f"section {name!r} has conflicting input address "
                         f"{source_address:#x}"
                     )
-                if not fixed and source_address != parts[0][0] and source_address != 0:
+                if not fixed and source_address != parts[0][1] and source_address != 0:
                     # Relocatable sections are expected to be section-relative.
                     raise LinkError(
                         f"section {name!r} has non-relative input address "
                         f"{source_address:#x}"
                     )
+                placements[(object_index, name)] = (name, len(payload))
                 payload.extend(data)
             if fixed and address + len(payload) > 1 << self.isa["address_width"]:
                 raise LinkError(f"section {name!r} exceeds address space")
             result[name] = LinkedSection(name, address, payload)
             cursors[name] = address + len(payload)
         self.sections = result
-        self._placements.clear()
-        for object_file in self.objects:
-            for section in object_file.definition["sections"]:
-                section_name = section["name"]
-                if section_name not in result:
-                    continue
-                if object_file.definition["format"] == "mxsm-packed":
-                    source_address = section["address"]
-                    data = bytes.fromhex(section["data"])
-                else:
-                    records = section["records"]
-                    if not records:
-                        continue
-                    source_address = min(record["address"] for record in records)
-                    end = max(
-                        record["address"] + len(bytes.fromhex(record["data"]))
-                        for record in records
-                    )
-                    payload = bytearray(end - source_address)
-                    for record in records:
-                        offset = record["address"] - source_address
-                        record_data = bytes.fromhex(record["data"])
-                        payload[offset:offset + len(record_data)] = record_data
-                    data = bytes(payload)
-                placement_start = result[section_name].data.find(data)
-                if placement_start < 0:
-                    raise LinkError(f"cannot place section {section_name!r} from {object_file.name}")
-                self._placements[(object_file.name, section_name)] = (
-                    section_name,
-                    placement_start,
-                )
+        self._placements = placements
         return result
 
     def resolve_symbols(self) -> dict:
         if not self.sections:
             self.layout_sections()
         symbols: dict[str, GlobalSymbol] = {}
-        for object_file in self.objects:
+        local_symbols: dict[tuple[int, str], GlobalSymbol] = {}
+        for object_index, object_file in enumerate(self.objects):
+            exports = set(object_file.definition.get("exports", []))
             for name, symbol in object_file.definition.get("symbols", {}).items():
                 section_name = symbol.get("section")
-                placement = self._placements.get((object_file.name, section_name))
+                placement = self._placements.get((object_index, section_name))
                 if placement is None:
                     raise LinkError(
                         f"{object_file.name}: symbol {name!r} references unknown section"
@@ -362,22 +339,34 @@ class StaticLinker:
                     + placement_offset
                     + symbol.get("offset", 0)
                 )
-                if name in symbols:
-                    raise LinkError(f"duplicate global symbol {name!r}")
-                symbols[name] = GlobalSymbol(name, linked_section, address, "global")
+                resolved = GlobalSymbol(
+                    name,
+                    linked_section,
+                    address,
+                    "global" if name in exports else "local",
+                )
+                local_symbols[(object_index, name)] = resolved
+                if name in exports:
+                    if name in symbols:
+                        raise LinkError(f"duplicate global symbol {name!r}")
+                    symbols[name] = resolved
         self.symbols = symbols
+        self.local_symbols = local_symbols
         return symbols
 
     def apply_relocations(self) -> None:
         if not self.symbols:
             self.resolve_symbols()
-        for object_file in self.objects:
+        for object_index, object_file in enumerate(self.objects):
             for relocation in object_file.definition.get("relocations", []):
                 symbol_name = relocation.get("symbol")
-                if symbol_name not in self.symbols:
+                target_symbol = self.local_symbols.get((object_index, symbol_name))
+                if target_symbol is None:
+                    target_symbol = self.symbols.get(symbol_name)
+                if target_symbol is None:
                     raise LinkError(f"undefined symbol {symbol_name!r}")
                 section_name = relocation.get("section")
-                placement = self._placements.get((object_file.name, section_name))
+                placement = self._placements.get((object_index, section_name))
                 if placement is None:
                     raise LinkError(
                         f"{object_file.name}: relocation references unknown section {section_name!r}"
@@ -388,7 +377,7 @@ class StaticLinker:
                     raise LinkError("only positive byte-aligned relocations are supported")
                 size = width // 8
                 offset = placement_offset + relocation.get("offset", 0)
-                target = self.symbols[symbol_name].address + relocation.get("addend", 0)
+                target = target_symbol.address + relocation.get("addend", 0)
                 limit = 1 << width
                 if not 0 <= target < limit:
                     raise LinkError(
@@ -405,8 +394,27 @@ class StaticLinker:
         self.layout_sections()
         self.resolve_symbols()
         self.apply_relocations()
-        if entry is not None and entry not in self.symbols:
-            raise LinkError(f"entry symbol {entry!r} is undefined")
+        entry_symbol = self.symbols.get(entry) if entry is not None else None
+        if entry is not None and entry_symbol is None:
+            local_matches = [
+                symbol for (object_index, name), symbol in self.local_symbols.items()
+                if name == entry
+            ]
+            if not local_matches:
+                raise LinkError(f"entry symbol {entry!r} is undefined")
+            if len(local_matches) > 1:
+                raise LinkError(f"entry symbol {entry!r} is ambiguous")
+            entry_symbol = local_matches[0]
+        linked_symbols = dict(self.symbols)
+        local_names: dict[str, list[GlobalSymbol]] = {}
+        for (object_index, name), symbol in self.local_symbols.items():
+            if name not in linked_symbols:
+                local_names.setdefault(name, []).append(symbol)
+        linked_symbols.update({
+            name: matches[0]
+            for name, matches in local_names.items()
+            if len(matches) == 1
+        })
         return {
             "format": "mxsm-executable",
             "version": 1,
@@ -414,7 +422,7 @@ class StaticLinker:
             "address_width": self.isa["address_width"],
             "data_width": self.isa["data_width"],
             "endianness": self.isa["endianness"],
-            "entry": self.symbols[entry].address if entry else None,
+            "entry": entry_symbol.address if entry_symbol else None,
             "sections": [
                 {
                     "name": section.name,
@@ -425,7 +433,7 @@ class StaticLinker:
             ],
             "symbols": {
                 name: {"section": symbol.section, "address": symbol.address}
-                for name, symbol in self.symbols.items()
+                for name, symbol in linked_symbols.items()
             },
             "relocations": [],
         }

@@ -172,3 +172,18 @@ address space described by the MXE header. Unmapped bytes are zero-filled.
 The `ins`, `nmi`, and `irq` sections are copied into `ins.bin` at their
 recorded addresses. The `data` section is copied into `data.bin`; other
 sections are ignored by raw-image extraction.
+
+## Inspecting MX files
+
+Use `readmx` (or `mxsm readmx`) to display MXO/MXE metadata in a
+human-readable form:
+
+```shell
+readmx -a build/module.mxo
+mxsm readmx -hS program.mxe
+```
+
+With no display options the command prints all information available for the
+file. `-h` selects the file header, `-S` the sections, `-s` symbols, and `-r`
+relocations; `-a` explicitly selects all of them. MXO files expose symbol and
+relocation tables, while MXE files report that those tables are not present.
